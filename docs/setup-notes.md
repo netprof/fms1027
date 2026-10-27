@@ -1,0 +1,20 @@
+# Setup notes
+
+## Local environment
+
+1. `npm install`
+2. Copy `.env.example` to `.env`. `DATABASE_URL` is the only variable so far and points to the Docker database.
+3. `npm run db:up` starts PostgreSQL 17 in Docker on `localhost:5432` (user, password and database are all `fms`).
+4. `npm run dev`, then check http://localhost:3000/api/health. It returns `{ status, db }`, or a 503 when the database is down.
+
+## One-time context
+
+- `drizzle/schema.ts` and `drizzle/relations.ts` are leftovers from a `drizzle-kit pull` against the empty database. They are not the schema; `src/db/schema.ts` is. Don't edit them.
+- `drizzle.config.ts` loads `.env` through `dotenv`, so `drizzle-kit` commands need `.env` in place.
+- `next.config.ts` turns on `cacheComponents` and `partialPrefetching`, and loads Tailwind through the `@tailwindcss/turbopack` loader.
+
+## Changelog
+
+Newest first, with absolute dates.
+
+- 2026-10-27: Set up Next.js 16 with Tailwind, PostgreSQL in docker-compose, the Drizzle config and client, the `db:*` scripts and `/api/health`. Added CLAUDE.md.
