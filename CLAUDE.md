@@ -16,6 +16,7 @@ Product spec (Traditional Chinese): [docs/spec.md](docs/spec.md)
 - `npm run db:migrate`: apply migrations
 - `npm run db:push`: sync the schema straight to the DB (dev only)
 - `npm run db:studio`: Drizzle Studio
+- `npm run orders:generate -- [from] [to]`: create missing standing orders for a date range (default today), e.g. after downtime
 - `npm run db:seed`: wipe every table and load sample data (`scripts/seed.ts`, dev only)
 
 ## Layout
@@ -24,7 +25,8 @@ Product spec (Traditional Chinese): [docs/spec.md](docs/spec.md)
 - `src/db/schema.ts`: the Drizzle schema (source of truth). Tables: employees, companies, sites (廠區, the ordering unit), routes (per meal slot) and route_driver_overrides, price_tiers, site_meal_plans, site_default_lines, menus, holidays, orders, order_lines (unit-price snapshot) and order_changes (audit trail and dashboard highlights)
 - `src/db/index.ts`: `db` client (`import { db } from "@/db"`)
 - `src/lib/meals.ts`: meal slots/kinds, cutoffs and Asia/Taipei date helpers (client-safe)
-- `src/lib/orders.ts`: the only place orders are written; enforces cutoffs for customers, flags staff changes after cutoff, creates each day's default orders lazily (`ensureDailyOrders`)
+- `src/lib/orders.ts`: the only place orders are written; enforces cutoffs for customers, flags staff changes after cutoff, creates each day's default orders (`ensureDailyOrders`, idempotent; called by pages and by the scheduler)
+- `src/lib/daily-orders.ts`: timer started from `src/instrumentation.ts` on server start; every 5 minutes it makes sure today's (Asia/Taipei) standing orders exist, so billing doesn't depend on page visits. Only today, never future days
 - `src/lib/order-events.ts`: order writes `pg_notify` on `order_changes`; the SSE route `/api/board/events` relays them
 - `src/lib/board.ts`: dashboard query behind `/api/board`
 - `src/lib/reports.ts`: Excel reports (`exceljs`). `/api/reports/daily?date=&slot=` (any employee) and `/api/reports/monthly?month=YYYY-MM` (admins); billing uses each order line's unit-price snapshot. UI at `/admin/reports`
