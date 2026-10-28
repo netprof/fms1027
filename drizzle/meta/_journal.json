@@ -8,6 +8,41 @@
       "when": 1793088450256,
       "tag": "0000_flaky_iron_fist",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793147925293,
+      "tag": "0001_material_vengeance",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793150631077,
+      "tag": "0002_rapid_prism",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793153054180,
+      "tag": "0003_eager_mongoose",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793153428260,
+      "tag": "0004_silly_titania",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793167636883,
+      "tag": "0005_needy_firelord",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,1 @@
+ALTER TYPE "public"."meal_kind" ADD VALUE 'no_beef' BEFORE 'b';

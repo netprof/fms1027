@@ -12,11 +12,55 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* Back-office palette, after PrimeNG Ultima (indigo theme). */
+@theme {
+  --color-primary: #3f51b5;
+  --color-primary-dark: #303f9f;
+  --color-primary-soft: #e8eaf6;
+  --color-primary-ink: #1a237e;
+  --color-ground: #f1f5f9;
+  --color-ink: #0f172a;
+  --color-ink-muted: #475569;
+  --font-admin: var(--font-roboto), "Microsoft JhengHei", "PingFang TC",
+    "Noto Sans TC", sans-serif;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
   }
+}
+
+/* Back office: theme-coloured checkboxes and radios. */
+.font-admin input[type="checkbox"],
+.font-admin input[type="radio"] {
+  accent-color: var(--color-primary);
+}
+
+/* Dashboard: a changed quantity scrolls up through delta → value → delta,
+   3 s each (6 s cycle). The third row repeats the first, so snapping back
+   to the top at 100% is invisible. The page sets a negative delay from the
+   clock so every chip scrolls in step. Deliberately not disabled under
+   prefers-reduced-motion: this is a TV status board and Windows reports
+   reduced motion whenever its animation effects are off. */
+@keyframes roll {
+  0%, 43.33% { transform: translateY(0); }
+  50%, 93.33% { transform: translateY(-1.25em); }
+  100% { transform: translateY(-2.5em); }
+}
+.roll-window {
+  display: inline-block;
+  height: 1.25em;
+  line-height: 1.25em;
+  overflow: hidden;
+  vertical-align: bottom;
+}
+.roll-track {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  animation: roll 6s ease-in-out infinite;
 }
 
 body {

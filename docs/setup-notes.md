@@ -1,0 +1,32 @@
+# Setup notes
+
+## Local environment
+
+1. `npm install`
+2. Copy `.env.example` to `.env`. `DATABASE_URL` is the only variable so far and points to the Docker database.
+3. `npm run db:up` starts PostgreSQL 17 in Docker on `localhost:5432` (user, password and database are all `fms`).
+4. `npm run dev`, then check http://localhost:3000/api/health. It returns `{ status, db }`, or a 503 when the database is down.
+
+## One-time context
+
+- `drizzle/schema.ts` and `drizzle/relations.ts` are leftovers from a `drizzle-kit pull` against the empty database. They are not the schema; `src/db/schema.ts` is. Don't edit them.
+- `drizzle.config.ts` loads `.env` through `dotenv`, so `drizzle-kit` commands need `.env` in place.
+- `next.config.ts` turns on `cacheComponents` and `partialPrefetching`, and loads Tailwind through the `@tailwindcss/turbopack` loader.
+
+## Changelog
+
+Newest first, with absolute dates.
+
+- 2026-10-28: Login rate limiting: `login_failures` table (migration `0005_needy_firelord`), 5 failures per username or 30 per IP within 15 minutes block login; an admin password reset lifts it. The IP comes from `x-forwarded-for`, so only trust it behind your own reverse proxy.
+- 2026-10-28: Standing orders are now created by a scheduler (`src/instrumentation.ts` → `src/lib/daily-orders.ts`, checks every 5 minutes, today only) instead of only on page visits. Added `npm run orders:generate` to backfill a date range.
+- 2026-10-28: Added Excel reports (`exceljs`): daily route/kitchen sheet for any employee and the monthly statement (company, site and line-by-line sheets) for admins, at `/admin/reports`.
+- 2026-10-28: Added `/admin/my-route`, the drivers' phone page (routes for a day incl. stand-ins, delivery order, address and tap-to-call contact, after-cutoff changes in blue). Board data now carries `driverId` and site contact fields. Seed sites get fake addresses and contacts.
+- 2026-10-28: Added admin-only base-data maintenance (customers and sites with per-slot plans and default quantities, routes with delivery order and stand-in drivers, weekly menus, holidays, price tiers, employees/accounts) and restyled the back office and login after PrimeNG Ultima (indigo top bar, sidebar, breadcrumb, cards, Roboto).
+- 2026-10-28: Added staff login (`sessions` table, migration `0004_silly_titania`), `src/proxy.ts`, and `/admin/orders` for phone-in changes with reason and history. Seed creates dev logins. The session cookie is `Secure` only when `x-forwarded-proto` is `https`, so login also works over plain HTTP on a LAN; serve over HTTPS in production.
+- 2026-10-28: Added meal kind 無牛 (`no_beef`, migration `0003_eager_mongoose`). Dashboard: lucide icons (`lucide-react`), validated categorical colours for price tiers, status legend top right, per-route and grand-total price × kind tables. Seed now makes 20–25 sites per route across 40 fictional companies.
+- 2026-10-28: Dashboard shows each order line as a meal-kind icon coloured by price tier, and highlights changes per line (computed in `src/lib/board.ts` by replaying `order_changes`) instead of per site.
+- 2026-10-28: Added meal kinds 無豬 (`no_pork`) and 其它 (`other`, free-text `label` on order and default lines), and custom prices outside `price_tiers`. Migration `0002_rapid_prism` was hand-reordered so the `label` columns exist before the keys that use them.
+- 2026-10-28: Added the order service, `/board` with live updates over SSE (Postgres LISTEN/NOTIFY), `/order` simulated ordering, and `npm run db:seed` with sample data.
+- 2026-10-28: Added the phase-1 schema (migration `0001_material_vengeance`).
+- 2026-10-28: Added `docs/spec.md`, the agreed requirements for the catering system.
+- 2026-10-27: Set up Next.js 16 with Tailwind, PostgreSQL in docker-compose, the Drizzle config and client, the `db:*` scripts and `/api/health`. Added CLAUDE.md.
