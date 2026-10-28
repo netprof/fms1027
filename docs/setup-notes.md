@@ -17,6 +17,7 @@
 
 Newest first, with absolute dates.
 
+- 2026-10-28: Added Excel reports (`exceljs`): daily route/kitchen sheet for any employee and the monthly statement (company, site and line-by-line sheets) for admins, at `/admin/reports`.
 - 2026-10-28: Added `/admin/my-route`, the drivers' phone page (routes for a day incl. stand-ins, delivery order, address and tap-to-call contact, after-cutoff changes in blue). Board data now carries `driverId` and site contact fields. Seed sites get fake addresses and contacts.
 - 2026-10-28: Added admin-only base-data maintenance (customers and sites with per-slot plans and default quantities, routes with delivery order and stand-in drivers, weekly menus, holidays, price tiers, employees/accounts) and restyled the back office and login after PrimeNG Ultima (indigo top bar, sidebar, breadcrumb, cards, Roboto).
 - 2026-10-28: Added staff login (`sessions` table, migration `0004_silly_titania`), `src/proxy.ts`, and `/admin/orders` for phone-in changes with reason and history. Seed creates dev logins. The session cookie is `Secure` only when `x-forwarded-proto` is `https`, so login also works over plain HTTP on a LAN; serve over HTTPS in production.

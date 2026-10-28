@@ -3,6 +3,7 @@
 import {
   Building2,
   CalendarOff,
+  FileSpreadsheet,
   MonitorPlay,
   PhoneCall,
   Route,
@@ -25,6 +26,7 @@ const SECTIONS: { title: string; adminOnly: boolean; items: Item[] }[] = [
       { href: "/admin/my-route", label: "我的路線", icon: Truck },
       { href: "/admin/orders", label: "電話改單", icon: PhoneCall },
       { href: "/board", label: "訂餐儀表板", icon: MonitorPlay },
+      { href: "/admin/reports", label: "報表", icon: FileSpreadsheet },
     ],
   },
   {

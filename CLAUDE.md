@@ -27,6 +27,7 @@ Product spec (Traditional Chinese): [docs/spec.md](docs/spec.md)
 - `src/lib/orders.ts`: the only place orders are written; enforces cutoffs for customers, flags staff changes after cutoff, creates each day's default orders lazily (`ensureDailyOrders`)
 - `src/lib/order-events.ts`: order writes `pg_notify` on `order_changes`; the SSE route `/api/board/events` relays them
 - `src/lib/board.ts`: dashboard query behind `/api/board`
+- `src/lib/reports.ts`: Excel reports (`exceljs`). `/api/reports/daily?date=&slot=` (any employee) and `/api/reports/monthly?month=YYYY-MM` (admins); billing uses each order line's unit-price snapshot. UI at `/admin/reports`
 - `src/lib/order-view.ts`: loads what an order editor needs; validates Server Action input
 - `src/lib/auth.ts`: staff sessions (random cookie token, stored SHA-256 hashed in `sessions`). Every admin page and Server Action calls `requireEmployee()`; `src/proxy.ts` only redirects cookieless `/admin` requests to `/login`
 - `src/lib/password.ts`: scrypt hashes, no framework imports (the seed uses it)
