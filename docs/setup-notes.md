@@ -17,5 +17,6 @@
 
 Newest first, with absolute dates.
 
+- 2026-10-28: Added the phase-1 schema (migration `0001_material_vengeance`).
 - 2026-10-28: Added `docs/spec.md`, the agreed requirements for the catering system.
 - 2026-10-27: Set up Next.js 16 with Tailwind, PostgreSQL in docker-compose, the Drizzle config and client, the `db:*` scripts and `/api/health`. Added CLAUDE.md.

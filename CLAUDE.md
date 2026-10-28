@@ -20,7 +20,7 @@ Product spec (Traditional Chinese): [docs/spec.md](docs/spec.md)
 ## Layout
 
 - `src/app/`: App Router pages and route handlers
-- `src/db/schema.ts`: the Drizzle schema (source of truth)
+- `src/db/schema.ts`: the Drizzle schema (source of truth). Tables: employees, companies, sites (廠區, the ordering unit), routes (per meal slot) and route_driver_overrides, price_tiers, site_meal_plans, site_default_lines, menus, holidays, orders, order_lines (unit-price snapshot) and order_changes (audit trail and dashboard highlights)
 - `src/db/index.ts`: `db` client (`import { db } from "@/db"`)
 - `drizzle/`: generated migrations
 
