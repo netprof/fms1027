@@ -22,7 +22,7 @@ Product spec (Traditional Chinese): [docs/spec.md](docs/spec.md)
 ## Layout
 
 - `src/app/`: App Router pages and route handlers
-- `src/db/schema.ts`: the Drizzle schema (source of truth). Tables: employees, companies, sites (廠區, the ordering unit), routes (per meal slot) and route_driver_overrides, price_tiers, site_meal_plans, site_default_lines, menus, holidays, orders, order_lines (unit-price snapshot) and order_changes (audit trail and dashboard highlights)
+- `src/db/schema.ts`: the Drizzle schema (source of truth). Tables: employees, sessions and login_failures (login rate limit), companies, sites (廠區, the ordering unit), routes (per meal slot) and route_driver_overrides, price_tiers, site_meal_plans, site_default_lines, menus, holidays, orders, order_lines (unit-price snapshot) and order_changes (audit trail and dashboard highlights)
 - `src/db/index.ts`: `db` client (`import { db } from "@/db"`)
 - `src/lib/meals.ts`: meal slots/kinds, cutoffs and Asia/Taipei date helpers (client-safe)
 - `src/lib/orders.ts`: the only place orders are written; enforces cutoffs for customers, flags staff changes after cutoff, creates each day's default orders (`ensureDailyOrders`, idempotent; called by pages and by the scheduler)
@@ -31,7 +31,7 @@ Product spec (Traditional Chinese): [docs/spec.md](docs/spec.md)
 - `src/lib/board.ts`: dashboard query behind `/api/board`
 - `src/lib/reports.ts`: Excel reports (`exceljs`). `/api/reports/daily?date=&slot=` (any employee) and `/api/reports/monthly?month=YYYY-MM` (admins); billing uses each order line's unit-price snapshot. UI at `/admin/reports`
 - `src/lib/order-view.ts`: loads what an order editor needs; validates Server Action input
-- `src/lib/auth.ts`: staff sessions (random cookie token, stored SHA-256 hashed in `sessions`). Every admin page and Server Action calls `requireEmployee()`; `src/proxy.ts` only redirects cookieless `/admin` requests to `/login`
+- `src/lib/auth.ts`: staff sessions (random cookie token, stored SHA-256 hashed in `sessions`). Every admin page and Server Action calls `requireEmployee()`; `src/proxy.ts` only redirects cookieless `/admin` requests to `/login`. Login is rate limited (5 failures per username or 30 per IP in 15 minutes, checked before the password); an admin password reset clears the username's failures
 - `src/lib/password.ts`: scrypt hashes, no framework imports (the seed uses it)
 - `src/components/`: shared UI (`KindIcon` and `price-colors.ts` shared by the board and the route page; `QuantityEditor` used by `/order`, `/admin/orders` and site defaults; `MenuCard`; `ActionForm` for admin Server Actions; `styles.ts` class strings)
 - `src/lib/admin-form.ts`: admin Server Action helpers. Wrap every base-data action in `adminAction()` (checks the admin role, refreshes, maps validation and Postgres 23505/23503 errors to messages); read fields with `text()`/`integer()`/`date()`/`checked()` and bound ids with `id()`

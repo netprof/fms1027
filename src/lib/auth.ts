@@ -3,12 +3,12 @@
 // requireEmployee() itself; src/proxy.ts only does an optimistic redirect.
 import "server-only";
 import { createHash, randomBytes } from "node:crypto";
-import { and, eq, gt, sql } from "drizzle-orm";
+import { and, eq, gt, lt, or, sql } from "drizzle-orm";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { db } from "@/db";
-import { employees, sessions } from "@/db/schema";
+import { employees, loginFailures, sessions } from "@/db/schema";
 import { verifyPassword } from "./password";
 
 export const SESSION_COOKIE = "fms_session";
@@ -36,6 +36,47 @@ export async function checkCredentials(
   if (!row?.passwordHash) return null;
   if (!(await verifyPassword(password, row.passwordHash))) return null;
   return { id: row.id, name: row.name, role: row.role };
+}
+
+// Rate limit: 5 failures per username or 30 per IP within 15 minutes block
+// further attempts until the oldest one ages out. Checked before the
+// password, so a locked account can't be probed.
+export const LOCKOUT_MINUTES = 15;
+const MAX_FAILURES_PER_USER = 5;
+const MAX_FAILURES_PER_IP = 30;
+const recent = sql`now() - make_interval(mins => ${LOCKOUT_MINUTES})`;
+
+// The first x-forwarded-for hop; only trustworthy behind our own proxy, so
+// the per-username limit is the one that matters.
+export async function clientIp(): Promise<string> {
+  const h = await headers();
+  return h.get("x-forwarded-for")?.split(",")[0].trim() || h.get("x-real-ip") || "unknown";
+}
+
+export async function loginBlocked(username: string, ip: string): Promise<boolean> {
+  const name = username.toLowerCase();
+  const [row] = await db
+    .select({
+      byUser: sql<number>`count(*) filter (where ${loginFailures.username} = ${name})`.mapWith(Number),
+      byIp: sql<number>`count(*) filter (where ${loginFailures.ip} = ${ip})`.mapWith(Number),
+    })
+    .from(loginFailures)
+    .where(
+      and(
+        gt(loginFailures.at, recent),
+        or(eq(loginFailures.username, name), eq(loginFailures.ip, ip)),
+      ),
+    );
+  return row.byUser >= MAX_FAILURES_PER_USER || row.byIp >= MAX_FAILURES_PER_IP;
+}
+
+export async function recordLoginFailure(username: string, ip: string) {
+  await db.insert(loginFailures).values({ username: username.toLowerCase(), ip });
+  await db.delete(loginFailures).where(lt(loginFailures.at, sql`now() - interval '1 day'`));
+}
+
+export async function clearLoginFailures(username: string) {
+  await db.delete(loginFailures).where(eq(loginFailures.username, username.toLowerCase()));
 }
 
 export async function startSession(employeeId: number) {

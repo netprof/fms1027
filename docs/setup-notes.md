@@ -17,6 +17,7 @@
 
 Newest first, with absolute dates.
 
+- 2026-10-28: Login rate limiting: `login_failures` table (migration `0005_needy_firelord`), 5 failures per username or 30 per IP within 15 minutes block login; an admin password reset lifts it. The IP comes from `x-forwarded-for`, so only trust it behind your own reverse proxy.
 - 2026-10-28: Standing orders are now created by a scheduler (`src/instrumentation.ts` → `src/lib/daily-orders.ts`, checks every 5 minutes, today only) instead of only on page visits. Added `npm run orders:generate` to backfill a date range.
 - 2026-10-28: Added Excel reports (`exceljs`): daily route/kitchen sheet for any employee and the monthly statement (company, site and line-by-line sheets) for admins, at `/admin/reports`.
 - 2026-10-28: Added `/admin/my-route`, the drivers' phone page (routes for a day incl. stand-ins, delivery order, address and tap-to-call contact, after-cutoff changes in blue). Board data now carries `driverId` and site contact fields. Seed sites get fake addresses and contacts.

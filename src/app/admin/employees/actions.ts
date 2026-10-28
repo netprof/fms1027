@@ -2,7 +2,7 @@
 
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, sessions } from "@/db/schema";
+import { employees, loginFailures, sessions } from "@/db/schema";
 import {
   FormError,
   adminAction,
@@ -88,6 +88,10 @@ export async function updateEmployee(employeeId: number, fd: FormData) {
       // (except an admin changing their own password, who stays signed in).
       if ((hash || !login || !active) && target !== admin.id) {
         await tx.delete(sessions).where(eq(sessions.employeeId, target));
+      }
+      // A password reset also lifts a login lockout.
+      if (hash && login) {
+        await tx.delete(loginFailures).where(eq(loginFailures.username, login.toLowerCase()));
       }
     });
   });

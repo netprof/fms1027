@@ -1,7 +1,16 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { checkCredentials, endSession, startSession } from "@/lib/auth";
+import {
+  LOCKOUT_MINUTES,
+  checkCredentials,
+  clearLoginFailures,
+  clientIp,
+  endSession,
+  loginBlocked,
+  recordLoginFailure,
+  startSession,
+} from "@/lib/auth";
 
 // username comes back so the field survives React's form reset after a
 // failed attempt.
@@ -21,9 +30,17 @@ export async function login(
   const password = String(formData.get("password") ?? "");
   if (!username || !password) return { error: "請輸入帳號與密碼", username };
 
+  const ip = await clientIp();
+  if (await loginBlocked(username, ip)) {
+    return { error: `嘗試次數過多，請 ${LOCKOUT_MINUTES} 分鐘後再試`, username };
+  }
   const employee = await checkCredentials(username, password);
-  if (!employee) return { error: "帳號或密碼錯誤", username };
+  if (!employee) {
+    await recordLoginFailure(username, ip);
+    return { error: "帳號或密碼錯誤", username };
+  }
 
+  await clearLoginFailures(username);
   await startSession(employee.id);
   redirect(safeNext(formData.get("next")));
 }

@@ -3,6 +3,7 @@
 import {
   boolean,
   date,
+  index,
   integer,
   jsonb,
   pgEnum,
@@ -60,6 +61,19 @@ export const sessions = pgTable("sessions", {
     .notNull()
     .defaultNow(),
 });
+
+// Failed logins, for rate limiting (src/lib/auth.ts). username is lowercased;
+// rows older than a day are pruned on the next failure.
+export const loginFailures = pgTable(
+  "login_failures",
+  {
+    id: serial("id").primaryKey(),
+    username: text("username").notNull(),
+    ip: text("ip").notNull(),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index().on(t.username, t.at), index().on(t.ip, t.at)],
+);
 
 export const companies = pgTable("companies", {
   id: serial("id").primaryKey(),
