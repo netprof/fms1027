@@ -19,6 +19,27 @@
   }
 }
 
+/* Dashboard: a changed quantity alternates between its delta and its value.
+   Both layers share one grid cell; the page sets a negative delay from the
+   clock so every chip flips in step. */
+@keyframes flip-first {
+  0%, 45% { opacity: 1; }
+  50%, 95% { opacity: 0; }
+  100% { opacity: 1; }
+}
+@keyframes flip-second {
+  0%, 45% { opacity: 0; }
+  50%, 95% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.flip-first { animation: flip-first 4s infinite; }
+.flip-second { animation: flip-second 4s infinite; }
+/* Without motion, show only the second layer (the value). */
+@media (prefers-reduced-motion: reduce) {
+  .flip-first { animation: none; opacity: 0; }
+  .flip-second { animation: none; opacity: 1; }
+}
+
 body {
   background: var(--background);
   color: var(--foreground);

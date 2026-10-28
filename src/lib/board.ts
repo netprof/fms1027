@@ -24,7 +24,13 @@ const RECENT_LIMIT = 30;
 
 export type BoardLine = OrderLine & {
   // Latest change to this line by a customer or staff, not the daily default.
-  change: { kind: ChangeKind; at: string; afterCutoff: boolean } | null;
+  // delta is the quantity change it made (+1, -2, …).
+  change: {
+    kind: ChangeKind;
+    at: string;
+    afterCutoff: boolean;
+    delta: number;
+  } | null;
   // Staff changed this line after its cutoff at some point.
   staffAfterCutoff: boolean;
 };
@@ -93,6 +99,7 @@ function markLines(
       marks.set(key, {
         change: {
           kind: !a ? "cancelled" : !b ? "new" : "modified",
+          delta: (a?.quantity ?? 0) - (b?.quantity ?? 0),
           at: change.createdAt.toISOString(),
           afterCutoff: staffAfterCutoff,
         },

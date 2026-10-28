@@ -76,14 +76,36 @@ function lineStatus(line: BoardLine, now: number): Status | null {
 
 const sum = (lines: OrderLine[]) => lines.reduce((n, l) => n + l.quantity, 0);
 
+const FLIP_MS = 4000; // matches the flip-* animations in globals.css
+
+// Alternates "+1" and "7" in one cell. The delay is set from the clock at
+// mount, so chips mounted at different times still flip together.
+function FlipNumber({ delta, value }: { delta: number; value: number }) {
+  const [mountedAt] = useState(() => Date.now());
+  const delay = { animationDelay: `-${mountedAt % FLIP_MS}ms` };
+  return (
+    <span className="inline-grid justify-items-end">
+      <span className="flip-first col-start-1 row-start-1" style={delay}>
+        {delta > 0 ? `+${delta}` : `−${-delta}`}
+      </span>
+      <span className="flip-second col-start-1 row-start-1" style={delay}>
+        {value}
+      </span>
+    </span>
+  );
+}
+
 function LineChip({
   line,
   prices,
   status,
+  delta,
 }: {
   line: OrderLine;
   prices: Prices;
   status: Status | null;
+  // Set while the change is fresh: the quantity flips with this delta.
+  delta?: number;
 }) {
   const style = status ? STATUS[status] : null;
   return (
@@ -96,7 +118,13 @@ function LineChip({
       {line.kind === "other" && line.label && (
         <span className="text-[11px] text-zinc-600">{line.label}</span>
       )}
-      <span className="font-semibold tabular-nums">{line.quantity}</span>
+      <span className="font-semibold tabular-nums">
+        {delta ? (
+          <FlipNumber delta={delta} value={line.quantity} />
+        ) : (
+          line.quantity
+        )}
+      </span>
       {!prices.isTier(line.unitPrice) && (
         <span className="text-[11px] text-zinc-500">@{line.unitPrice}</span>
       )}
@@ -129,6 +157,12 @@ function SiteLines({
           line={line}
           prices={prices}
           status={status}
+          delta={
+            line.change &&
+            now - new Date(line.change.at).getTime() < HIGHLIGHT_MS
+              ? line.change.delta
+              : undefined
+          }
         />
       ))}
     </span>
