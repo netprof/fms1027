@@ -22,7 +22,7 @@ Product spec (Traditional Chinese): [docs/spec.md](docs/spec.md)
 ## Layout
 
 - `src/app/`: App Router pages and route handlers
-- `src/db/schema.ts`: the Drizzle schema (source of truth). Tables: employees, sessions and login_failures (login rate limit), companies, sites (廠區, the ordering unit), routes (per meal slot) and route_driver_overrides, price_tiers, site_meal_plans, site_default_lines, menus, holidays, orders, order_lines (unit-price snapshot) and order_changes (audit trail and dashboard highlights)
+- `src/db/schema.ts`: the Drizzle schema (source of truth). Tables: employees, sessions and login_failures (login rate limit), companies, line_contacts (a site's LINE accounts and binding codes), line_drafts (LINE orders awaiting 確認), sites (廠區, the ordering unit), routes (per meal slot) and route_driver_overrides, price_tiers, site_meal_plans, site_default_lines, menus, holidays, orders, order_lines (unit-price snapshot) and order_changes (audit trail and dashboard highlights; `line_contact_id` for LINE orders)
 - `src/db/index.ts`: `db` client (`import { db } from "@/db"`)
 - `src/lib/meals.ts`: meal slots/kinds, cutoffs and Asia/Taipei date helpers (client-safe)
 - `src/lib/orders.ts`: the only place orders are written; enforces cutoffs for customers, flags staff changes after cutoff, creates each day's default orders (`ensureDailyOrders`, idempotent; called by pages and by the scheduler)
@@ -30,6 +30,8 @@ Product spec (Traditional Chinese): [docs/spec.md](docs/spec.md)
 - `src/lib/order-events.ts`: order writes `pg_notify` on `order_changes`; the SSE route `/api/board/events` relays them
 - `src/lib/board.ts`: dashboard query behind `/api/board`
 - `src/lib/reports.ts`: Excel reports (`exceljs`). `/api/reports/daily?date=&slot=` (any employee) and `/api/reports/monthly?month=YYYY-MM` (admins); billing uses each order line's unit-price snapshot. UI at `/admin/reports`
+- `src/lib/line/`: phase-2 LINE bot. `bot.ts` runs the conversation (binding by 6-digit code, order → Flex confirmation card → postback 確認/取消, queries; picks the meal, prices and cutoffs itself), `parse.ts` asks `claude-haiku-5-5` for a structured reading of the message (Zod + `messages.parse`; the model never decides prices or cutoffs), `api.ts` verifies signatures and sends replies/pushes (`LINE_DRY_RUN=1` logs instead), `notify.ts` pushes to the site's contacts when staff change an order after cutoff (called from `/admin/orders`). Webhook: `POST /api/line/webhook` (answers at once, handles events in `after()`). Contacts are managed on `/admin/sites/[id]`
+- `src/lib/system-ca.ts`: with `TRUST_SYSTEM_CA=1`, `src/instrumentation.ts` adds the OS certificate store at startup (company TLS proxy)
 - `src/lib/order-view.ts`: loads what an order editor needs; validates Server Action input
 - `src/lib/auth.ts`: staff sessions (random cookie token, stored SHA-256 hashed in `sessions`). Every admin page and Server Action calls `requireEmployee()`; `src/proxy.ts` only redirects cookieless `/admin` requests to `/login`. Login is rate limited (5 failures per username or 30 per IP in 15 minutes, checked before the password); an admin password reset clears the username's failures
 - `src/lib/password.ts`: scrypt hashes, no framework imports (the seed uses it)

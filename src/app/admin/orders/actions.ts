@@ -1,9 +1,11 @@
 "use server";
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
+import { after } from "next/server";
 import { db } from "@/db";
-import { employees, orderChanges, orders } from "@/db/schema";
+import { employees, lineContacts, orderChanges, orders } from "@/db/schema";
 import { requireEmployee } from "@/lib/auth";
+import { notifyStaffChange } from "@/lib/line/notify";
 import {
   isLineArray,
   loadOrderView,
@@ -21,6 +23,7 @@ export type HistoryEntry = {
   id: number;
   at: string;
   source: "system" | "customer_web" | "line" | "staff";
+  // The staff member, or the LINE contact, who made the change.
   employeeName: string | null;
   reason: string | null;
   afterCutoff: boolean;
@@ -52,7 +55,7 @@ export async function loadStaffOrder(
       id: orderChanges.id,
       createdAt: orderChanges.createdAt,
       source: orderChanges.source,
-      employeeName: employees.name,
+      employeeName: sql<string | null>`coalesce(${employees.name}, ${lineContacts.name})`,
       reason: orderChanges.reason,
       afterCutoff: orderChanges.afterCutoff,
       before: orderChanges.before,
@@ -61,6 +64,7 @@ export async function loadStaffOrder(
     .from(orderChanges)
     .innerJoin(orders, eq(orders.id, orderChanges.orderId))
     .leftJoin(employees, eq(employees.id, orderChanges.employeeId))
+    .leftJoin(lineContacts, eq(lineContacts.id, orderChanges.lineContactId))
     .where(
       and(
         eq(orders.siteId, key.siteId),
@@ -102,8 +106,14 @@ export async function adjustOrder(
   if (why.length > MAX_REASON) {
     return { ok: false, error: `原因最多 ${MAX_REASON} 字` };
   }
-  return adjustOrderByStaff(key, lines, {
+  const result = await adjustOrderByStaff(key, lines, {
     employeeId: employee.id,
     reason: why,
   });
+  // Customers hear about changes made after cutoff on their behalf.
+  if (result.ok && result.changed && result.afterCutoff) {
+    const { after: lines } = result;
+    after(() => notifyStaffChange(key, lines));
+  }
+  return result;
 }

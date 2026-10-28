@@ -34,13 +34,23 @@ export type OrderLine = {
 const MAX_LABEL = 30;
 const MAX_PRICE = 9999;
 export type OrderKey = { siteId: number; date: string; slot: MealSlot };
+// A write that changed something also returns both snapshots, for
+// notifications (src/lib/line/notify.ts).
 export type WriteResult =
-  | { ok: true; changed: boolean }
+  | { ok: true; changed: false }
+  | {
+      ok: true;
+      changed: true;
+      afterCutoff: boolean;
+      before: OrderLine[];
+      after: OrderLine[];
+    }
   | { ok: false; error: string };
 
 type ChangeMeta = {
   source: "customer_web" | "line" | "staff";
   employeeId?: number;
+  lineContactId?: number;
   reason?: string;
   afterCutoff: boolean;
 };
@@ -75,6 +85,13 @@ export function normalizeLines(lines: OrderLine[]): OrderLine[] {
       b.unitPrice - a.unitPrice ||
       a.label!.localeCompare(b.label!),
   );
+}
+
+// Equal orders, whatever the key order (jsonb reorders object keys).
+export function sameLines(a: OrderLine[], b: OrderLine[]) {
+  const flat = (lines: OrderLine[]) =>
+    JSON.stringify(normalizeLines(lines).map((l) => [l.kind, l.unitPrice, l.quantity, l.label]));
+  return flat(a) === flat(b);
 }
 
 function changedKinds(before: OrderLine[], after: OrderLine[]): MealKind[] {
@@ -186,6 +203,7 @@ async function writeOrder(
       orderId: order.id,
       source: meta.source,
       employeeId: meta.employeeId,
+      lineContactId: meta.lineContactId,
       reason: meta.reason,
       afterCutoff: meta.afterCutoff,
       before: { lines: before },
@@ -195,8 +213,32 @@ async function writeOrder(
     await tx.execute(
       sql`select pg_notify(${ORDER_CHANNEL}, ${JSON.stringify(event)})`,
     );
-    return { ok: true, changed: true };
+    return { ok: true, changed: true, afterCutoff: meta.afterCutoff, before, after };
   });
+}
+
+// The message shown when a customer changes a meal kind past its cutoff.
+function cutoffError(key: OrderKey, changed: MealKind[], now: Date) {
+  const closed = changed.filter((k) => now >= cutoffFor(key.date, key.slot, k));
+  if (closed.length === 0) return null;
+  const detail = closed
+    .map(
+      (k) =>
+        `${KIND_LABEL[k]}（${formatCutoff(cutoffFor(key.date, key.slot, k))} 截止）`,
+    )
+    .join("、");
+  return `${detail}已截止，請來電由專人調整`;
+}
+
+// For previews (the LINE confirmation card): would a customer be allowed to
+// go from before to after right now? Returns the reason if not.
+export function customerCutoffError(
+  key: OrderKey,
+  before: OrderLine[],
+  after: OrderLine[],
+  now: Date = new Date(),
+) {
+  return cutoffError(key, changedKinds(before, normalizeLines(after)), now);
 }
 
 // Customers (order page, LINE) may only change meal kinds still before cutoff.
@@ -205,24 +247,15 @@ export async function placeCustomerOrder(
   lines: OrderLine[],
   source: "customer_web" | "line",
   now: Date = new Date(),
+  lineContactId?: number,
 ): Promise<WriteResult> {
   const error = await validate(key, lines);
   if (error) return { ok: false, error };
 
   return writeOrder(key, lines, (changed) => {
-    const closed = changed.filter(
-      (k) => now >= cutoffFor(key.date, key.slot, k),
-    );
-    if (closed.length > 0) {
-      const detail = closed
-        .map(
-          (k) =>
-            `${KIND_LABEL[k]}（${formatCutoff(cutoffFor(key.date, key.slot, k))} 截止）`,
-        )
-        .join("、");
-      return { error: `${detail}已截止，請來電由專人調整` };
-    }
-    return { source, afterCutoff: false };
+    const error = cutoffError(key, changed, now);
+    if (error) return { error };
+    return { source, lineContactId, afterCutoff: false };
   });
 }
 
