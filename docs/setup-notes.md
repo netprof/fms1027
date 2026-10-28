@@ -3,9 +3,75 @@
 ## Local environment
 
 1. `npm install`
-2. Copy `.env.example` to `.env`. `DATABASE_URL` is the only variable so far and points to the Docker database.
+2. Copy `.env.example` to `.env`. `DATABASE_URL` points to the Docker database. The LINE and Anthropic keys are only needed for the LINE bot. On the company network set `TRUST_SYSTEM_CA=1`: traffic to api.anthropic.com goes through a TLS-inspecting proxy, and Node rejects its certificate otherwise.
 3. `npm run db:up` starts PostgreSQL 17 in Docker on `localhost:5432` (user, password and database are all `fms`).
 4. `npm run dev`, then check http://localhost:3000/api/health. It returns `{ status, db }`, or a 503 when the database is down.
+
+## LINE bot
+
+1. In the LINE Developers console, open the Messaging API channel (official account 「永發便當」).
+2. Set the webhook URL to `https://<public host>/api/line/webhook`, turn on "Use webhook", and press "Verify". It has to be HTTPS and reachable from the internet. For local testing, run a tunnel such as `cloudflared tunnel --url http://localhost:3000` and use the URL it prints.
+3. In the LINE Official Account Manager, turn off auto-reply and greeting messages so only the bot answers.
+4. In the back office, open a site (客戶 → 公司 → 廠區設定) and add a LINE contact. Give the customer the 6-digit code; they add the account as a friend and send the code.
+
+With `LINE_DRY_RUN=1` nothing is sent to LINE; replies and pushes are logged as `[line:dry-run]`. Webhook requests must still carry a valid `x-line-signature` (HMAC-SHA256 of the body with the channel secret).
+
+## Azure
+
+The app runs on Azure App Service (Linux, Node 22). The database is Azure Database for PostgreSQL flexible server 17. Serverless hosting (Static Web Apps, Functions) doesn't fit: the dashboard keeps SSE connections and a LISTEN connection open, and the scheduler runs inside the server. Every push to `main` builds and deploys through `.github/workflows/azure.yml`.
+
+The build sets `BUILD_STANDALONE=1`, which gives `output: "standalone"`. `.next/standalone` is a self-contained `server.js` with only the traced `node_modules`. The build needs no database or secrets.
+
+One-time setup (`<app>` is the web app name, `<db>` the database server):
+
+1. Create the resources:
+   ```bash
+   az group create -n fms-rg -l eastasia
+   az postgres flexible-server create -g fms-rg -n <db> --version 17 --tier Burstable \
+     --sku-name Standard_B1ms --storage-size 32 --admin-user fmsadmin --admin-password '<password>' \
+     --public-access 0.0.0.0
+   az postgres flexible-server db create -g fms-rg -s <db> -d fms
+   az appservice plan create -g fms-rg -n fms-plan --is-linux --sku B1
+   az webapp create -g fms-rg -p fms-plan -n <app> --runtime "NODE:22-lts"
+   ```
+   `--public-access 0.0.0.0` lets only Azure services reach the database.
+2. Configure the web app:
+   ```bash
+   az webapp config set -g fms-rg -n <app> --always-on true \
+     --startup-file "HOSTNAME=0.0.0.0 node server.js" \
+     --generic-configurations '{"healthCheckPath":"/api/health"}'
+   az webapp config appsettings set -g fms-rg -n <app> --settings \
+     DATABASE_URL="postgres://fmsadmin:<password>@<db>.postgres.database.azure.com:5432/fms?sslmode=verify-full" \
+     LINE_CHANNEL_SECRET=... LINE_CHANNEL_ACCESS_TOKEN=... ANTHROPIC_API_KEY=...
+   ```
+   - Always On is required, or the idle app is stopped and the scheduler and live dashboard stop with it.
+   - `HOSTNAME=0.0.0.0` makes `server.js` listen on all interfaces. The container's own `HOSTNAME` would be used otherwise. App Service sets `PORT` itself.
+   - Leave out `TRUST_SYSTEM_CA` (company network only) and `SCM_DO_BUILD_DURING_DEPLOYMENT` (the package is already built).
+   - `sslmode=verify-full` checks the server certificate. `require` does the same in `pg` 8 but prints a warning.
+3. Let GitHub Actions log in through OIDC, with no stored password:
+   ```bash
+   APP_ID=$(az ad app create --display-name fms-github-deploy --query appId -o tsv)
+   az ad sp create --id $APP_ID
+   az ad app federated-credential create --id $APP_ID --parameters '{"name":"main","issuer":"https://token.actions.githubusercontent.com","subject":"repo:netprof/fms1027:ref:refs/heads/main","audiences":["api://AzureADTokenExchange"]}'
+   az role assignment create --assignee $APP_ID --role "Website Contributor" \
+     --scope $(az webapp show -g fms-rg -n <app> --query id -o tsv)
+   gh secret set AZURE_CLIENT_ID --body $APP_ID
+   gh secret set AZURE_TENANT_ID --body $(az account show --query tenantId -o tsv)
+   gh secret set AZURE_SUBSCRIPTION_ID --body $(az account show --query id -o tsv)
+   gh variable set AZURE_WEBAPP_NAME --body <app>
+   ```
+   The credential only accepts runs on `main`.
+4. From a machine that can reach port 5432, apply migrations and create the first admin. The company network blocks 5432.
+   ```bash
+   az postgres flexible-server firewall-rule create -g fms-rg -n <db> --rule-name me --start-ip-address <your IP>
+   DATABASE_URL="<as above>" npm run db:migrate
+   DATABASE_URL="<as above>" npm run admin:create -- admin 管理員 0900-000-000
+   ```
+   `admin:create` prints a random password once; set `ADMIN_PASSWORD` to choose one instead. Run it again for a username that already exists to reset that login as admin and lift its lockout. Don't run `db:seed` here: it wipes every table. Remove the firewall rule afterwards.
+5. Push to `main`, or run the workflow by hand from the Actions tab. Then check `https://<app>.azurewebsites.net/api/health`.
+6. In the LINE Developers console, set the webhook URL to `https://<app>.azurewebsites.net/api/line/webhook` and press Verify.
+
+Run migrations by hand before deploying a change that adds one. The workflow doesn't migrate.
 
 ## One-time context
 
@@ -15,8 +81,11 @@
 
 ## Changelog
 
+- 2026-10-28: Azure deployment: `.github/workflows/azure.yml` builds a standalone server (`BUILD_STANDALONE=1`) and deploys it to App Service on every push to `main`. Added `npm run admin:create` for a production database's first admin. The login rate limit now drops the port Azure appends to `x-forwarded-for`. `/api/health` and `/api/board/events` call `connection()`, so the build no longer runs them: it used to need a database, and baked in a fixed health result.
+
 Newest first, with absolute dates.
 
+- 2026-10-28: Phase 2 LINE bot: `/api/line/webhook`, `src/lib/line/` (bot conversation, Claude Haiku 5.5 parsing via structured outputs, Messaging API client, push on after-cutoff staff edits), LINE contacts with binding codes on the site page. Tables `line_contacts`, `line_drafts`, column `order_changes.line_contact_id` (migration `0006_big_surge`). New env vars `LINE_CHANNEL_SECRET`, `LINE_CHANNEL_ACCESS_TOKEN`, `LINE_DRY_RUN`, `ANTHROPIC_API_KEY`, `TRUST_SYSTEM_CA`. New dependencies `@anthropic-ai/sdk`, `zod`.
 - 2026-10-28: Login rate limiting: `login_failures` table (migration `0005_needy_firelord`), 5 failures per username or 30 per IP within 15 minutes block login; an admin password reset lifts it. The IP comes from `x-forwarded-for`, so only trust it behind your own reverse proxy.
 - 2026-10-28: Standing orders are now created by a scheduler (`src/instrumentation.ts` → `src/lib/daily-orders.ts`, checks every 5 minutes, today only) instead of only on page visits. Added `npm run orders:generate` to backfill a date range.
 - 2026-10-28: Added Excel reports (`exceljs`): daily route/kitchen sheet for any employee and the monthly statement (company, site and line-by-line sheets) for admins, at `/admin/reports`.

@@ -67,7 +67,7 @@ const WEEK_MENU = [
 
 async function main() {
   await db.execute(sql`
-    truncate table sessions, order_changes, order_lines, orders, menus, holidays,
+    truncate table sessions, login_failures, line_drafts, line_contacts, order_changes, order_lines, orders, menus, holidays,
       site_default_lines, site_meal_plans, route_driver_overrides, routes,
       sites, companies, price_tiers, employees
     restart identity cascade

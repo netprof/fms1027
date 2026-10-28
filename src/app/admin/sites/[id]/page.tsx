@@ -1,13 +1,14 @@
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, desc, eq, sql } from "drizzle-orm";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
-import { inputClass, labelClass } from "@/components/styles";
+import { inputClass, labelClass, tableClass } from "@/components/styles";
 import { db } from "@/db";
 import {
   companies,
   employees,
+  lineContacts,
   priceTiers,
   routes,
   siteDefaultLines,
@@ -20,6 +21,12 @@ import { normalizeLines } from "@/lib/orders";
 import { AdminPage } from "../../admin-page";
 import { savePlan, updateSite } from "../../companies/actions";
 import { DefaultsEditor } from "./defaults-editor";
+import {
+  addLineContact,
+  deleteLineContact,
+  renewBindCode,
+  unbindLineContact,
+} from "./line-actions";
 
 export const metadata: Metadata = { title: "廠區設定" };
 
@@ -45,7 +52,7 @@ async function Content({ params }: { params: Promise<{ id: string }> }) {
   if (!site) notFound();
   const s = site.site;
 
-  const [plans, defaults, routeRows, tiers] = await Promise.all([
+  const [plans, defaults, routeRows, tiers, contacts] = await Promise.all([
     db.select().from(siteMealPlans).where(eq(siteMealPlans.siteId, siteId)),
     db.select().from(siteDefaultLines).where(eq(siteDefaultLines.siteId, siteId)),
     db
@@ -55,6 +62,21 @@ async function Content({ params }: { params: Promise<{ id: string }> }) {
       .where(eq(routes.active, true))
       .orderBy(asc(routes.sortOrder), asc(routes.id)),
     db.select().from(priceTiers).orderBy(desc(priceTiers.price)),
+    db
+      .select({
+        id: lineContacts.id,
+        name: lineContacts.name,
+        bound: sql<boolean>`${lineContacts.lineUserId} is not null`,
+        displayName: lineContacts.displayName,
+        boundAt: lineContacts.boundAt,
+        bindCode: lineContacts.bindCode,
+        expiresAt: lineContacts.bindCodeExpiresAt,
+        // Compared in SQL: no JS clock in a prerendered component.
+        expired: sql<boolean>`coalesce(${lineContacts.bindCodeExpiresAt} <= now(), true)`,
+      })
+      .from(lineContacts)
+      .where(eq(lineContacts.siteId, siteId))
+      .orderBy(asc(lineContacts.id)),
   ]);
   const prices = tiers.map((t) => t.price);
 
@@ -172,7 +194,92 @@ async function Content({ params }: { params: Promise<{ id: string }> }) {
           </section>
         );
       })}
+
+      <section className="space-y-3 rounded-lg border border-slate-200 p-4">
+        <div>
+          <h2 className="font-medium">LINE 聯絡人</h2>
+          <p className="text-sm text-ink-muted">
+            新增聯絡人後把綁定碼交給客戶，客戶加 LINE 好友並傳送綁定碼即可用 LINE 訂餐。綁定碼 24 小時內有效。
+          </p>
+        </div>
+        {contacts.length > 0 && (
+          <table className={tableClass}>
+            <thead>
+              <tr>
+                <th>聯絡人</th>
+                <th>狀態</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {contacts.map((c) => (
+                <tr key={c.id}>
+                  <td>{c.name}</td>
+                  <td>
+                    {c.bound ? (
+                      <span className="text-[#0ca30c]">
+                        已綁定{c.displayName ? `（LINE：${c.displayName}）` : ""}
+                        {c.boundAt && <span className="ml-1 text-xs text-ink-muted">{formatTime(c.boundAt)}</span>}
+                      </span>
+                    ) : c.bindCode && !c.expired ? (
+                      <span>
+                        綁定碼 <span className="font-mono text-base font-semibold tracking-widest">{c.bindCode}</span>
+                        <span className="ml-1 text-xs text-ink-muted">{formatTime(c.expiresAt!)} 前有效</span>
+                      </span>
+                    ) : (
+                      <span className="text-ink-muted">未綁定，綁定碼已過期</span>
+                    )}
+                  </td>
+                  <td>
+                    <span className="flex flex-wrap justify-end gap-2">
+                      {c.bound ? (
+                        <ActionForm
+                          action={unbindLineContact.bind(null, c.id)}
+                          submitLabel="解除綁定"
+                          confirm={`確定解除 ${c.name} 的 LINE 綁定？`}
+                          subtle
+                          quiet
+                        />
+                      ) : (
+                        <ActionForm action={renewBindCode.bind(null, c.id)} submitLabel="重新產生綁定碼" subtle quiet />
+                      )}
+                      <ActionForm
+                        action={deleteLineContact.bind(null, c.id)}
+                        submitLabel="刪除"
+                        confirm={`確定刪除聯絡人 ${c.name}？`}
+                        danger
+                        quiet
+                      />
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        <ActionForm
+          action={addLineContact.bind(null, s.id)}
+          submitLabel="新增聯絡人"
+          resetOnSuccess
+          className="flex flex-wrap items-end gap-3"
+        >
+          <label className={labelClass}>
+            聯絡人姓名
+            <input name="name" required maxLength={30} className={`${inputClass} w-36`} />
+          </label>
+        </ActionForm>
+      </section>
     </div>
   );
 }
 
+function formatTime(at: Date) {
+  return at.toLocaleString("zh-TW", {
+    timeZone: "Asia/Taipei",
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
