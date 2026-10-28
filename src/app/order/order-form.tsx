@@ -239,7 +239,7 @@ export function OrderForm({
                       <input
                         type="text"
                         maxLength={30}
-                        placeholder="內容，如不吃牛"
+                        placeholder="內容，如不吃辣"
                         aria-label="其它餐別內容"
                         className="mt-1 block w-28 rounded border border-zinc-300 bg-transparent p-1 text-xs font-normal disabled:opacity-40"
                         disabled={closed(kind)}

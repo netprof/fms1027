@@ -17,8 +17,11 @@ import {
 import { addDays, isoWeekday, taipeiDate } from "@/lib/meals";
 
 const DRIVERS = ["阿達", "小晴", "阿玟", "阿燕", "阿勇", "小蔡", "阿新", "阿明"];
-const COMPANIES = ["甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸"];
-const PLANTS = ["一廠", "二廠", "三廠"];
+const STEMS = "甲乙丙丁戊己庚辛壬癸";
+const BRANCHES = "子丑寅卯辰巳午未申酉戌亥";
+const SUFFIXES = ["科技", "精密", "電子", "工業", "實業", "化工"];
+const COMPANY_COUNT = 40;
+const NUMERALS = "一二三四五六七八九十";
 const PRICES = [70, 60, 50];
 
 // Monday to Saturday, from the menu photo.
@@ -112,21 +115,27 @@ async function main() {
 
   const companyRows = await db
     .insert(companies)
-    .values(COMPANIES.map((c) => ({ name: `${c}公司` })))
+    .values(
+      Array.from({ length: COMPANY_COUNT }, (_, i) => ({
+        name: `${STEMS[i % 10]}${BRANCHES[i % 12]}${SUFFIXES[i % SUFFIXES.length]}`,
+      })),
+    )
     .returning();
 
-  // Three to four sites per lunch route, spread across companies.
+  // 20 to 25 sites per lunch route, spread across companies; each company's
+  // sites are numbered 一廠, 二廠, …
+  const plantsUsed = new Map<number, number>();
+  const dinnerSeq = new Map<number, number>();
   let n = 0;
   for (const [r, route] of lunchRoutes.entries()) {
-    const count = 3 + (r % 2);
+    const count = 20 + ((r * 3) % 6);
     for (let seq = 0; seq < count; seq++, n++) {
       const company = companyRows[n % companyRows.length];
+      const plant = plantsUsed.get(company.id) ?? 0;
+      plantsUsed.set(company.id, plant + 1);
       const [site] = await db
         .insert(sites)
-        .values({
-          companyId: company.id,
-          name: PLANTS[Math.floor(n / companyRows.length) % PLANTS.length],
-        })
+        .values({ companyId: company.id, name: `${NUMERALS[plant % 10]}廠` })
         .returning();
       const price = PRICES[n % PRICES.length];
 
@@ -141,11 +150,12 @@ async function main() {
         { kind: "meat_a" as const, quantity: 5 + ((n * 7) % 30) },
         { kind: "veg_a" as const, quantity: n % 3 },
         { kind: "no_pork" as const, quantity: n % 5 === 1 ? 2 : 0 },
+        { kind: "no_beef" as const, quantity: n % 6 === 2 ? 1 + (n % 3) : 0 },
         { kind: "b" as const, quantity: n % 4 === 0 ? 2 : 0 },
         {
           kind: "other" as const,
-          quantity: n % 7 === 3 ? 1 : 0,
-          label: "不吃牛",
+          quantity: n % 11 === 3 ? 1 : 0,
+          label: "不吃辣",
         },
       ].filter((l) => l.quantity > 0);
       await db.insert(siteDefaultLines).values(
@@ -160,11 +170,13 @@ async function main() {
       // Every fifth site also takes dinner, Monday to Friday.
       if (n % 5 === 0) {
         const dinnerRoute = dinnerRoutes[(n / 5) % dinnerRoutes.length];
+        const dSeq = dinnerSeq.get(dinnerRoute.id) ?? 0;
+        dinnerSeq.set(dinnerRoute.id, dSeq + 1);
         await db.insert(siteMealPlans).values({
           siteId: site.id,
           slot: "dinner",
           routeId: dinnerRoute.id,
-          routeSeq: seq,
+          routeSeq: dSeq,
           unitPrice: price,
           orderWeekdays: [1, 2, 3, 4, 5],
         });

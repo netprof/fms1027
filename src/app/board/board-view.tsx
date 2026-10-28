@@ -9,6 +9,7 @@ import {
   currentSlot,
   lineLabel,
   taipeiDate,
+  type MealKind,
   type MealSlot,
 } from "@/lib/meals";
 import type { OrderLine } from "@/lib/orders";
@@ -18,28 +19,43 @@ const HIGHLIGHT_MS = 10 * 60_000;
 
 type Selection = { date: string; slot: MealSlot } | null; // null = follow now
 
-// Change highlights go behind a single line's icon and quantity.
-const STYLE = {
-  new: "bg-green-300",
-  modified: "bg-orange-300",
-  cancelled: "bg-red-300 line-through",
-  staff: "bg-sky-300",
-} as const;
+// Change states are tints of the status palette behind one line's icon and
+// quantity; cancelled is also struck through so it never relies on colour.
+type Status = "new" | "modified" | "cancelled" | "staff";
+const STATUS: Record<Status, { label: string; tint: string; className?: string }> = {
+  new: { label: "新下單", tint: "rgba(12,163,12,0.22)" },
+  modified: { label: "修改", tint: "rgba(250,178,25,0.38)" },
+  cancelled: { label: "取消", tint: "rgba(208,59,59,0.22)", className: "line-through" },
+  staff: { label: "截止後後台調整", tint: "rgba(42,120,214,0.22)" },
+};
 
-// Icon colours for price tiers, highest tier first. Kept clear of the
-// highlight hues above. Prices outside the tiers are grey and spelled out.
-const TIER_COLORS = ["#4338ca", "#a21caf", "#0f766e", "#92400e", "#334155"];
-const CUSTOM_PRICE_COLOR = "#71717a";
+// Price tiers take categorical slots in fixed order, highest price first.
+// The first three are validated all-pairs for colour-vision deficiency.
+const TIER_COLORS = [
+  "#2a78d6",
+  "#eb6834",
+  "#1baf7a",
+  "#eda100",
+  "#e87ba4",
+  "#008300",
+  "#6250d6",
+  "#e34948",
+];
+const CUSTOM_PRICE_COLOR = "#6b6a65";
 
-type PriceColor = (price: number) => string;
+type Prices = {
+  tiers: number[];
+  isTier: (price: number) => boolean;
+  color: (price: number) => string;
+};
 
-function lineStyle(line: BoardLine, now: number): string | null {
+function lineStatus(line: BoardLine, now: number): Status | null {
   const change = line.change;
-  if (change?.afterCutoff) return STYLE.staff;
+  if (change?.afterCutoff) return "staff";
   if (change && now - new Date(change.at).getTime() < HIGHLIGHT_MS) {
-    return STYLE[change.kind];
+    return change.kind;
   }
-  return line.staffAfterCutoff ? STYLE.staff : null;
+  return line.staffAfterCutoff ? "staff" : null;
 }
 
 const sum = (lines: OrderLine[]) => lines.reduce((n, l) => n + l.quantity, 0);
@@ -47,27 +63,27 @@ const lineKey = (l: OrderLine) => `${l.kind}:${l.unitPrice}:${l.label ?? ""}`;
 
 function LineChip({
   line,
-  priceColor,
-  isTier,
-  className = "",
+  prices,
+  status,
 }: {
   line: OrderLine;
-  priceColor: PriceColor;
-  isTier: boolean;
-  className?: string;
+  prices: Prices;
+  status: Status | null;
 }) {
+  const style = status ? STATUS[status] : null;
   return (
     <span
-      className={`inline-flex items-center gap-0.5 rounded px-1 ${className}`}
-      title={`${lineLabel(line)} ${line.unitPrice} 元`}
+      className={`inline-flex items-center gap-0.5 rounded px-1 ${style?.className ?? ""}`}
+      style={style ? { background: style.tint } : undefined}
+      title={`${lineLabel(line)} ${line.unitPrice} 元${style ? `（${style.label}）` : ""}`}
     >
-      <KindIcon kind={line.kind} color={priceColor(line.unitPrice)} />
+      <KindIcon kind={line.kind} color={prices.color(line.unitPrice)} size={14} />
       {line.kind === "other" && line.label && (
-        <span className="text-xs text-zinc-600">{line.label}</span>
+        <span className="text-[11px] text-zinc-600">{line.label}</span>
       )}
       <span className="font-semibold tabular-nums">{line.quantity}</span>
-      {!isTier && (
-        <span className="text-xs text-zinc-500">@{line.unitPrice}</span>
+      {!prices.isTier(line.unitPrice) && (
+        <span className="text-[11px] text-zinc-500">@{line.unitPrice}</span>
       )}
     </span>
   );
@@ -76,119 +92,126 @@ function LineChip({
 function SiteLines({
   site,
   now,
-  priceColor,
-  tiers,
+  prices,
 }: {
   site: BoardSite;
   now: number;
-  priceColor: PriceColor;
-  tiers: Set<number>;
+  prices: Prices;
 }) {
   // Cancelled lines stay visible while they are highlighted.
   const shown = [
-    ...site.lines.map((l) => ({ line: l, style: lineStyle(l, now) })),
-    ...site.removed
-      .map((l) => ({ line: l, style: lineStyle(l, now) }))
-      .filter((x) => x.style),
-  ];
+    ...site.lines.map((line) => ({ line, removed: false })),
+    ...site.removed.map((line) => ({ line, removed: true })),
+  ]
+    .map((x) => ({ ...x, status: lineStatus(x.line, now) }))
+    .filter((x) => !x.removed || x.status);
   if (shown.length === 0) return <span className="text-zinc-400">—</span>;
   return (
-    <span className="flex flex-wrap justify-end gap-x-1 gap-y-0.5">
-      {shown.map(({ line, style }) => (
+    <span className="flex flex-wrap justify-end gap-x-0.5">
+      {shown.map(({ line, removed, status }) => (
         <LineChip
-          key={lineKey(line) + (site.lines.includes(line) ? "" : ":removed")}
+          key={lineKey(line) + (removed ? ":removed" : "")}
           line={line}
-          priceColor={priceColor}
-          isTier={tiers.has(line.unitPrice)}
-          className={style ?? ""}
+          prices={prices}
+          status={status}
         />
       ))}
     </span>
   );
 }
 
-function Legend({
-  tiers,
-  priceColor,
-}: {
-  tiers: number[];
-  priceColor: PriceColor;
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-      {MEAL_KINDS.map((k) => (
-        <span key={k} className="flex items-center gap-1">
-          <KindIcon kind={k} color="#e4e4e7" />
-          {KIND_LABEL[k]}
-        </span>
-      ))}
-      <span className="text-zinc-500">|</span>
-      {tiers.map((p) => (
-        <span key={p} className="flex items-center gap-1">
-          <span
-            className="inline-block h-3 w-3 rounded-full"
-            style={{ background: priceColor(p) }}
-          />
-          {p} 元
-        </span>
-      ))}
-      <span className="flex items-center gap-1">
-        <span
-          className="inline-block h-3 w-3 rounded-full"
-          style={{ background: CUSTOM_PRICE_COLOR }}
-        />
-        其它價位
-      </span>
-      <span className="text-zinc-500">|</span>
-      <Swatch className={STYLE.new} label="新下單" />
-      <Swatch className={STYLE.modified} label="修改" />
-      <Swatch className={STYLE.cancelled} label="取消" />
-      <Swatch className={STYLE.staff} label="截止後後台調整" />
-    </div>
-  );
-}
-
-function Totals({
+// Quantities by price (rows) and meal kind (columns). The full table under
+// the board lists every kind and tier, so it doubles as the legend.
+function QuantityTable({
   lines,
-  priceColor,
-  tiers,
+  prices,
+  full = false,
 }: {
   lines: OrderLine[];
-  priceColor: PriceColor;
-  tiers: Set<number>;
+  prices: Prices;
+  full?: boolean;
 }) {
-  const byKey = new Map<string, OrderLine>();
-  for (const l of lines) {
-    const t = byKey.get(lineKey(l)) ?? { ...l, quantity: 0 };
-    t.quantity += l.quantity;
-    byKey.set(lineKey(l), t);
-  }
-  const rows = [...byKey.values()].sort(
-    (a, b) =>
-      MEAL_KINDS.indexOf(a.kind) - MEAL_KINDS.indexOf(b.kind) ||
-      b.unitPrice - a.unitPrice ||
-      (a.label ?? "").localeCompare(b.label ?? ""),
-  );
+  // Every table shows every tier and kind so route tables line up. Only the
+  // full table splits "其它" into one column per free-text label.
+  const CUSTOM = -1;
+  const rowOf = (l: OrderLine) => (prices.isTier(l.unitPrice) ? l.unitPrice : CUSTOM);
+  const colOf = (l: OrderLine) =>
+    full && l.kind === "other" && l.label ? `other:${l.label}` : l.kind;
+
+  const usedCols = new Set(lines.map(colOf));
+  const rows = [...prices.tiers, CUSTOM];
+  const otherCols = [...usedCols].filter((c) => c.startsWith("other:")).sort();
+  const cols = [
+    ...MEAL_KINDS.filter((k) => k !== "other"),
+    ...otherCols,
+    ...(otherCols.length === 0 || usedCols.has("other") ? ["other"] : []),
+  ];
+
+  const cell = (r: number | null, c: string | null) =>
+    sum(
+      lines.filter(
+        (l) => (r === null || rowOf(l) === r) && (c === null || colOf(l) === c),
+      ),
+    );
+  const kindOf = (c: string) => c.split(":")[0] as MealKind;
+  const colLabel = (c: string) =>
+    c.startsWith("other:") ? c.slice(6) : KIND_LABEL[c as MealKind];
+
+  const num = (n: number) =>
+    n === 0 ? <span className="text-zinc-300">·</span> : n;
+  const pad = full ? "px-2 py-0.5" : "px-1 py-px";
+
   return (
-    <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
-      {rows.map((l) => (
-        <span key={lineKey(l)} className="flex items-center gap-1">
-          <KindIcon
-            kind={l.kind}
-            color={priceColor(l.unitPrice)}
-            className="h-5 w-5"
-          />
-          <span className="text-sm text-zinc-600">
-            {lineLabel(l)}
-            {tiers.has(l.unitPrice) ? "" : ` @${l.unitPrice}`}
-          </span>
-          <b className="text-xl tabular-nums">{l.quantity}</b>
-        </span>
-      ))}
-      <span className="ml-auto">
-        合計 <b className="text-2xl tabular-nums">{sum(lines)}</b> 份
-      </span>
-    </div>
+    <table className={`w-full tabular-nums ${full ? "text-sm" : "text-xs"}`}>
+      <thead>
+        <tr className="text-zinc-500">
+          <th className={`${pad} text-left font-normal`}>
+            {full ? "價位＼餐別" : ""}
+          </th>
+          {cols.map((c) => (
+            <th key={c} className={`${pad} text-right font-normal`}>
+              <span className="inline-flex items-center gap-1" title={colLabel(c)}>
+                <KindIcon kind={kindOf(c)} size={full ? 16 : 13} />
+                {full && <span>{colLabel(c)}</span>}
+              </span>
+            </th>
+          ))}
+          <th className={`${pad} text-right font-normal`}>計</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr key={r} className="border-t border-zinc-200">
+            <th className={`${pad} text-left font-normal text-zinc-600`}>
+              <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                <span
+                  className="inline-block h-2.5 w-2.5 rounded-full"
+                  style={{ background: r === CUSTOM ? CUSTOM_PRICE_COLOR : prices.color(r) }}
+                />
+                {r === CUSTOM ? "其它價位" : `${r} 元`}
+              </span>
+            </th>
+            {cols.map((c) => (
+              <td key={c} className={`${pad} text-right`}>
+                {num(cell(r, c))}
+              </td>
+            ))}
+            <td className={`${pad} text-right font-semibold`}>{num(cell(r, null))}</td>
+          </tr>
+        ))}
+        <tr className="border-t-2 border-zinc-300 font-semibold">
+          <th className={`${pad} text-left`}>計</th>
+          {cols.map((c) => (
+            <td key={c} className={`${pad} text-right`}>
+              {num(cell(null, c))}
+            </td>
+          ))}
+          <td className={`${pad} text-right ${full ? "text-lg" : "text-sm"}`}>
+            {sum(lines)}
+          </td>
+        </tr>
+      </tbody>
+    </table>
   );
 }
 
@@ -254,10 +277,13 @@ export function BoardView() {
   const serverNow = (now ?? 0) + skew;
   const allLines = board?.routes.flatMap((r) => r.sites.flatMap((s) => s.lines)) ?? [];
   const tierList = board?.priceTiers ?? [];
-  const tiers = new Set(tierList);
-  const priceColor: PriceColor = (price) => {
-    const i = tierList.indexOf(price);
-    return i < 0 ? CUSTOM_PRICE_COLOR : TIER_COLORS[i % TIER_COLORS.length];
+  const prices: Prices = {
+    tiers: tierList,
+    isTier: (price) => tierList.includes(price),
+    color: (price) => {
+      const i = tierList.indexOf(price);
+      return i < 0 ? CUSTOM_PRICE_COLOR : TIER_COLORS[i % TIER_COLORS.length];
+    },
   };
 
   return (
@@ -295,13 +321,20 @@ export function BoardView() {
             回到現在
           </button>
         )}
-        <span
-          className={`ml-auto text-xs ${live ? "text-green-400" : "text-red-400"}`}
-        >
-          ● {live ? "即時" : "連線中斷"}
-        </span>
-        <div className="w-full">
-          <Legend tiers={tierList} priceColor={priceColor} />
+        <div className="ml-auto flex flex-wrap items-center gap-3 text-xs">
+          {(Object.keys(STATUS) as Status[]).map((s) => (
+            <span
+              key={s}
+              className={`rounded px-1.5 py-0.5 text-zinc-900 ${STATUS[s].className ?? ""}`}
+              // Tints are drawn over white so they read the same as on the board.
+              style={{ background: `linear-gradient(${STATUS[s].tint}, ${STATUS[s].tint}), #fff` }}
+            >
+              {STATUS[s].label}
+            </span>
+          ))}
+          <span className={live ? "text-green-400" : "text-red-400"}>
+            ● {live ? "即時" : "連線中斷"}
+          </span>
         </div>
       </header>
 
@@ -317,67 +350,53 @@ export function BoardView() {
         <p className="p-8 text-2xl text-zinc-500">{board.date} 不供餐</p>
       ) : (
         <>
-          <main className="grid flex-1 auto-cols-[minmax(11rem,1fr)] grid-flow-col gap-2 overflow-x-auto p-2">
-            {board.routes.map((route) => {
-              const lines = route.sites.flatMap((s) => s.lines);
-              return (
-                <section
-                  key={route.routeId}
-                  className="flex flex-col rounded bg-white shadow-sm"
-                >
-                  <div className="border-b border-zinc-200 px-2 py-1.5">
-                    <div className="text-lg font-semibold">
-                      {route.driver?.name ?? "未指派"}
-                      {route.standIn && (
-                        <span className="ml-1 rounded bg-amber-300 px-1 text-xs">
-                          代班
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-xs tabular-nums text-zinc-500">
-                      {route.driver?.phone}
-                    </div>
-                  </div>
-                  <ol className="flex-1 space-y-1 p-1">
-                    {route.sites.map((site) => (
-                      <li
-                        key={site.siteId}
-                        className="flex items-start justify-between gap-2 rounded px-1.5 py-1 text-sm"
-                      >
-                        <span className="shrink-0 font-medium">
-                          {site.companyName}
-                          <span className="text-zinc-600">{site.name}</span>
-                        </span>
-                        <SiteLines
-                          site={site}
-                          now={serverNow}
-                          priceColor={priceColor}
-                          tiers={tiers}
-                        />
-                      </li>
-                    ))}
-                  </ol>
-                  <div className="border-t border-zinc-200 px-2 py-1 text-right text-sm">
-                    小計 <b className="text-lg tabular-nums">{sum(lines)}</b>
-                  </div>
-                </section>
-              );
-            })}
+          <main className="grid flex-1 auto-cols-[minmax(13rem,1fr)] grid-flow-col gap-2 overflow-x-auto p-2">
+            {board.routes.map((route) => (
+              <section
+                key={route.routeId}
+                className="flex flex-col rounded bg-white shadow-sm"
+              >
+                <div className="flex items-baseline gap-2 border-b border-zinc-200 px-2 py-1">
+                  <span className="text-base font-semibold">
+                    {route.driver?.name ?? "未指派"}
+                  </span>
+                  {route.standIn && (
+                    <span className="rounded bg-amber-300 px-1 text-xs">代班</span>
+                  )}
+                  <span className="ml-auto text-xs tabular-nums text-zinc-500">
+                    {route.driver?.phone}
+                  </span>
+                </div>
+                <ol className="flex-1 px-1 py-0.5 text-[13px] leading-tight">
+                  {route.sites.map((site) => (
+                    <li
+                      key={site.siteId}
+                      className="flex items-start justify-between gap-1 border-b border-zinc-100 px-1 py-0.5 last:border-0"
+                    >
+                      <span className="shrink-0">
+                        {site.companyName}
+                        <span className="text-zinc-500">{site.name}</span>
+                      </span>
+                      <SiteLines site={site} now={serverNow} prices={prices} />
+                    </li>
+                  ))}
+                </ol>
+                <div className="border-t border-zinc-300 bg-zinc-50 px-1 py-0.5">
+                  <QuantityTable
+                    lines={route.sites.flatMap((s) => s.lines)}
+                    prices={prices}
+                  />
+                </div>
+              </section>
+            ))}
           </main>
           <footer className="bg-white px-4 py-2 shadow-inner">
-            <Totals lines={allLines} priceColor={priceColor} tiers={tiers} />
+            <div className="max-w-5xl">
+              <QuantityTable lines={allLines} prices={prices} full />
+            </div>
           </footer>
         </>
       )}
     </div>
-  );
-}
-
-function Swatch({ className, label }: { className: string; label: string }) {
-  return (
-    <span className="flex items-center gap-1">
-      <span className={`inline-block h-3 w-3 rounded-sm ${className}`} />
-      {label}
-    </span>
   );
 }

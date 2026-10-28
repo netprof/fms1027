@@ -4,9 +4,16 @@
 export const MEAL_SLOTS = ["lunch", "dinner"] as const;
 export type MealSlot = (typeof MEAL_SLOTS)[number];
 
-// meat_a / veg_a / no_pork follow the daily menu; b is the pre-ordered B
-// meal; other carries a free-text label on the order line (e.g. 不吃牛).
-export const MEAL_KINDS = ["meat_a", "veg_a", "no_pork", "b", "other"] as const;
+// meat_a / veg_a / no_pork / no_beef follow the daily menu; b is the
+// pre-ordered B meal; other carries a free-text label on the order line.
+export const MEAL_KINDS = [
+  "meat_a",
+  "veg_a",
+  "no_pork",
+  "no_beef",
+  "b",
+  "other",
+] as const;
 export type MealKind = (typeof MEAL_KINDS)[number];
 
 export const SLOT_LABEL: Record<MealSlot, string> = {
@@ -18,6 +25,7 @@ export const KIND_LABEL: Record<MealKind, string> = {
   meat_a: "葷",
   veg_a: "素",
   no_pork: "無豬",
+  no_beef: "無牛",
   b: "B餐",
   other: "其它",
 };
