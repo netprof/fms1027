@@ -132,14 +132,26 @@ function QuantityTable({
   full?: boolean;
 }) {
   // Every table shows every tier and kind so route tables line up. Only the
-  // full table splits "其它" into one column per free-text label.
+  // full table splits custom prices into one row each and "其它" into one
+  // column per free-text label; route tables lump them together.
   const CUSTOM = -1;
-  const rowOf = (l: OrderLine) => (prices.isTier(l.unitPrice) ? l.unitPrice : CUSTOM);
+  const rowOf = (l: OrderLine) =>
+    full || prices.isTier(l.unitPrice) ? l.unitPrice : CUSTOM;
   const colOf = (l: OrderLine) =>
     full && l.kind === "other" && l.label ? `other:${l.label}` : l.kind;
 
   const usedCols = new Set(lines.map(colOf));
-  const rows = [...prices.tiers, CUSTOM];
+  const customPrices = full
+    ? [...new Set(lines.map((l) => l.unitPrice))]
+        .filter((p) => !prices.isTier(p))
+        .sort((a, b) => b - a)
+    : [];
+  // With no custom prices in use, the full table keeps an empty 其它價位
+  // row so it still works as the legend.
+  const rows = [
+    ...prices.tiers,
+    ...(customPrices.length > 0 ? customPrices : [CUSTOM]),
+  ];
   const otherCols = [...usedCols].filter((c) => c.startsWith("other:")).sort();
   const cols = [
     ...MEAL_KINDS.filter((k) => k !== "other"),
@@ -188,7 +200,11 @@ function QuantityTable({
                   className="inline-block h-2.5 w-2.5 rounded-full"
                   style={{ background: r === CUSTOM ? CUSTOM_PRICE_COLOR : prices.color(r) }}
                 />
-                {r === CUSTOM ? "其它價位" : `${r} 元`}
+                {r === CUSTOM
+                  ? "其它價位"
+                  : prices.isTier(r)
+                    ? `${r} 元`
+                    : `${r} 元（其它）`}
               </span>
             </th>
             {cols.map((c) => (
