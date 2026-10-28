@@ -7,7 +7,6 @@ import {
   orderChanges,
   orderLines,
   orders,
-  priceTiers,
   siteDefaultLines,
   siteMealPlans,
   sites,
@@ -24,7 +23,16 @@ import {
 } from "./meals";
 import { ORDER_CHANNEL, type OrderEvent } from "./order-events";
 
-export type OrderLine = { kind: MealKind; unitPrice: number; quantity: number };
+// label is free text for kind "other" and empty for every other kind.
+export type OrderLine = {
+  kind: MealKind;
+  unitPrice: number;
+  quantity: number;
+  label?: string;
+};
+
+const MAX_LABEL = 30;
+const MAX_PRICE = 9999;
 export type OrderKey = { siteId: number; date: string; slot: MealSlot };
 export type WriteResult =
   | { ok: true; changed: boolean }
@@ -53,17 +61,19 @@ export async function isServiceDay(date: string): Promise<boolean> {
 // order compare equal.
 export function normalizeLines(lines: OrderLine[]): OrderLine[] {
   const merged = new Map<string, OrderLine>();
-  for (const line of lines) {
-    if (line.quantity <= 0) continue;
-    const key = `${line.kind}:${line.unitPrice}`;
+  for (const { kind, unitPrice, quantity, label } of lines) {
+    if (quantity <= 0) continue;
+    const text = kind === "other" ? (label ?? "").trim() : "";
+    const key = `${kind}:${unitPrice}:${text}`;
     const existing = merged.get(key);
-    if (existing) existing.quantity += line.quantity;
-    else merged.set(key, { ...line });
+    if (existing) existing.quantity += quantity;
+    else merged.set(key, { kind, unitPrice, quantity, label: text });
   }
   return [...merged.values()].sort(
     (a, b) =>
       MEAL_KINDS.indexOf(a.kind) - MEAL_KINDS.indexOf(b.kind) ||
-      b.unitPrice - a.unitPrice,
+      b.unitPrice - a.unitPrice ||
+      a.label!.localeCompare(b.label!),
   );
 }
 
@@ -79,6 +89,7 @@ async function readLines(tx: Tx | typeof db, orderId: number) {
       kind: orderLines.kind,
       unitPrice: orderLines.unitPrice,
       quantity: orderLines.quantity,
+      label: orderLines.label,
     })
     .from(orderLines)
     .where(eq(orderLines.orderId, orderId));
@@ -117,16 +128,23 @@ async function validate(key: OrderKey, lines: OrderLine[]) {
   if (!plan) return "此廠區沒有訂這個餐次";
   if (!(await isServiceDay(key.date))) return "當天不供餐";
 
-  const prices = new Set(
-    (await db.select({ price: priceTiers.price }).from(priceTiers)).map(
-      (p) => p.price,
-    ),
-  );
+  // Prices outside price_tiers are allowed ("其它" price).
   for (const line of lines) {
     if (!isMealKind(line.kind)) return "餐別不正確";
     if (!Number.isInteger(line.quantity) || line.quantity < 0)
       return "份數必須是 0 以上的整數";
-    if (!prices.has(line.unitPrice)) return `沒有 ${line.unitPrice} 元的價位`;
+    if (
+      !Number.isInteger(line.unitPrice) ||
+      line.unitPrice <= 0 ||
+      line.unitPrice > MAX_PRICE
+    )
+      return "單價必須是 1 到 9999 的整數";
+    if (line.label !== undefined && typeof line.label !== "string")
+      return "其它餐別內容不正確";
+    const label = (line.label ?? "").trim();
+    if (line.kind === "other" && line.quantity > 0 && !label)
+      return "「其它」餐別請填寫內容";
+    if (label.length > MAX_LABEL) return `「其它」內容最多 ${MAX_LABEL} 字`;
   }
   return null;
 }
@@ -267,7 +285,12 @@ export async function ensureDailyOrders(date: string, slot: MealSlot) {
     const lines = normalizeLines(
       defaults
         .filter((d) => d.siteId === siteId)
-        .map(({ kind, unitPrice, quantity }) => ({ kind, unitPrice, quantity })),
+        .map(({ kind, unitPrice, quantity, label }) => ({
+          kind,
+          unitPrice,
+          quantity,
+          label,
+        })),
     );
     await db.transaction(async (tx) => {
       const [order] = await tx

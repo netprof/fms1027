@@ -138,7 +138,12 @@ export async function getBoard(date: string, slot: MealSlot): Promise<Board> {
       lines: normalizeLines(
         lineRows
           .filter((l) => l.orderId === orderId)
-          .map(({ kind, unitPrice, quantity }) => ({ kind, unitPrice, quantity })),
+          .map(({ kind, unitPrice, quantity, label }) => ({
+            kind,
+            unitPrice,
+            quantity,
+            label,
+          })),
       ),
       lastChange: change
         ? {

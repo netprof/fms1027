@@ -4,8 +4,9 @@
 export const MEAL_SLOTS = ["lunch", "dinner"] as const;
 export type MealSlot = (typeof MEAL_SLOTS)[number];
 
-// meat_a / veg_a follow the daily menu; b is the pre-ordered B meal.
-export const MEAL_KINDS = ["meat_a", "veg_a", "b"] as const;
+// meat_a / veg_a / no_pork follow the daily menu; b is the pre-ordered B
+// meal; other carries a free-text label on the order line (e.g. 不吃牛).
+export const MEAL_KINDS = ["meat_a", "veg_a", "no_pork", "b", "other"] as const;
 export type MealKind = (typeof MEAL_KINDS)[number];
 
 export const SLOT_LABEL: Record<MealSlot, string> = {
@@ -16,10 +17,16 @@ export const SLOT_LABEL: Record<MealSlot, string> = {
 export const KIND_LABEL: Record<MealKind, string> = {
   meat_a: "葷",
   veg_a: "素",
+  no_pork: "無豬",
   b: "B餐",
+  other: "其它",
 };
 
-// A meals close on the day itself; B meals close the day before.
+export function lineLabel(line: { kind: MealKind; label?: string }): string {
+  return line.kind === "other" && line.label ? line.label : KIND_LABEL[line.kind];
+}
+
+// B meals close the day before; every other kind closes on the day itself.
 const A_CUTOFF_HOUR: Record<MealSlot, number> = { lunch: 11, dinner: 16 };
 const B_CUTOFF_HOUR = 16;
 

@@ -140,7 +140,13 @@ async function main() {
       const lines = [
         { kind: "meat_a" as const, quantity: 5 + ((n * 7) % 30) },
         { kind: "veg_a" as const, quantity: n % 3 },
+        { kind: "no_pork" as const, quantity: n % 5 === 1 ? 2 : 0 },
         { kind: "b" as const, quantity: n % 4 === 0 ? 2 : 0 },
+        {
+          kind: "other" as const,
+          quantity: n % 7 === 3 ? 1 : 0,
+          label: "不吃牛",
+        },
       ].filter((l) => l.quantity > 0);
       await db.insert(siteDefaultLines).values(
         lines.map((l) => ({

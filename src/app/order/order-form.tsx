@@ -14,14 +14,22 @@ import { loadOrder, submitOrder, type LoadedOrder } from "./actions";
 
 export type SiteOption = { id: number; label: string; slots: MealSlot[] };
 
-type Quantities = Record<string, number>; // `${kind}:${price}` → quantity
+// A price column is a fixed price, or CUSTOM for the "其它" price typed in
+// the column header.
+type Column = number | typeof CUSTOM;
+const CUSTOM = "custom";
 
-const cell = (kind: MealKind, price: number) => `${kind}:${price}`;
+type Quantities = Record<string, number>; // `${kind}:${column}` → quantity
+
+const cell = (kind: MealKind, column: Column) => `${kind}:${column}`;
 
 function toQuantities(lines: OrderLine[]): Quantities {
-  return Object.fromEntries(
-    lines.map((l) => [cell(l.kind, l.unitPrice), l.quantity]),
-  );
+  const q: Quantities = {};
+  for (const l of lines) {
+    const key = cell(l.kind, l.unitPrice);
+    q[key] = (q[key] ?? 0) + l.quantity;
+  }
+  return q;
 }
 
 export function OrderForm({
@@ -40,6 +48,8 @@ export function OrderForm({
   const [slot, setSlot] = useState<MealSlot>(initialSlot);
   const [loaded, setLoaded] = useState<LoadedOrder | null>(null);
   const [quantities, setQuantities] = useState<Quantities>({});
+  const [customPrice, setCustomPrice] = useState("");
+  const [otherLabel, setOtherLabel] = useState("");
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(
     null,
   );
@@ -67,6 +77,9 @@ export function OrderForm({
       }
       setLoaded(result);
       setQuantities(toQuantities(result.lines));
+      setCustomPrice("");
+      // One free-text label per order on this page.
+      setOtherLabel(result.lines.find((l) => l.kind === "other")?.label ?? "");
       setMessage(null);
     });
     return () => {
@@ -79,10 +92,22 @@ export function OrderForm({
   const allClosed = MEAL_KINDS.every(closed);
 
   function submit() {
-    const lines: OrderLine[] = Object.entries(quantities).map(([key, quantity]) => {
-      const [kind, price] = key.split(":");
-      return { kind: kind as MealKind, unitPrice: Number(price), quantity };
-    });
+    const lines: OrderLine[] = [];
+    for (const [key, quantity] of Object.entries(quantities)) {
+      if (quantity <= 0) continue;
+      const [kind, column] = key.split(":") as [MealKind, string];
+      const unitPrice = Number(column === CUSTOM ? customPrice : column);
+      if (column === CUSTOM && !(Number.isInteger(unitPrice) && unitPrice > 0)) {
+        setMessage({ ok: false, text: "請在「其它」價位欄填寫單價。" });
+        return;
+      }
+      lines.push({
+        kind,
+        unitPrice,
+        quantity,
+        label: kind === "other" ? otherLabel : undefined,
+      });
+    }
     startTransition(async () => {
       const result = await submitOrder(siteId, date, slot, lines);
       if (!result.ok) {
@@ -96,9 +121,17 @@ export function OrderForm({
     });
   }
 
-  // Default price first, then the other tiers.
-  const columns = loaded
-    ? [loaded.unitPrice, ...prices.filter((p) => p !== loaded.unitPrice)]
+  // Default price first, then the other tiers, then custom prices already on
+  // the order, then the "其它" column.
+  const columns: Column[] = loaded
+    ? [
+        ...new Set([
+          loaded.unitPrice,
+          ...prices,
+          ...loaded.lines.map((l) => l.unitPrice),
+        ]),
+        CUSTOM,
+      ]
     : [];
 
   return (
@@ -173,18 +206,48 @@ export function OrderForm({
             <thead>
               <tr className="text-left text-zinc-500">
                 <th className="py-2 font-normal">餐別</th>
-                {columns.map((p) => (
-                  <th key={p} className="py-2 font-normal">
-                    {p} 元{p === loaded.unitPrice && "（預設）"}
-                  </th>
-                ))}
+                {columns.map((p) =>
+                  p === CUSTOM ? (
+                    <th key={p} className="py-2 font-normal">
+                      <input
+                        type="number"
+                        min={1}
+                        inputMode="numeric"
+                        placeholder="其它"
+                        aria-label="其它價位單價"
+                        className="w-16 rounded border border-zinc-300 bg-transparent p-1 text-sm"
+                        value={customPrice}
+                        onChange={(e) => setCustomPrice(e.target.value)}
+                      />{" "}
+                      元
+                    </th>
+                  ) : (
+                    <th key={p} className="py-2 font-normal">
+                      {p} 元{p === loaded.unitPrice && "（預設）"}
+                    </th>
+                  ),
+                )}
                 <th className="py-2 font-normal">截止</th>
               </tr>
             </thead>
             <tbody>
               {MEAL_KINDS.map((kind) => (
                 <tr key={kind} className="border-t border-zinc-200">
-                  <td className="py-2 font-medium">{KIND_LABEL[kind]}</td>
+                  <td className="py-2 pr-2 font-medium">
+                    {KIND_LABEL[kind]}
+                    {kind === "other" && (
+                      <input
+                        type="text"
+                        maxLength={30}
+                        placeholder="內容，如不吃牛"
+                        aria-label="其它餐別內容"
+                        className="mt-1 block w-28 rounded border border-zinc-300 bg-transparent p-1 text-xs font-normal disabled:opacity-40"
+                        disabled={closed(kind)}
+                        value={otherLabel}
+                        onChange={(e) => setOtherLabel(e.target.value)}
+                      />
+                    )}
+                  </td>
                   {columns.map((p) => (
                     <td key={p} className="py-2 pr-2">
                       <input

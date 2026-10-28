@@ -139,8 +139,12 @@ export const siteDefaultLines = pgTable(
       .notNull()
       .references(() => priceTiers.price),
     quantity: integer("quantity").notNull(),
+    // Free text for kind "other"; empty for every other kind.
+    label: text("label").notNull().default(""),
   },
-  (t) => [primaryKey({ columns: [t.siteId, t.slot, t.kind, t.unitPrice] })],
+  (t) => [
+    primaryKey({ columns: [t.siteId, t.slot, t.kind, t.unitPrice, t.label] }),
+  ],
 );
 
 export const menus = pgTable(
@@ -178,6 +182,7 @@ export const orders = pgTable(
 );
 
 // unitPrice is a snapshot taken when the line is written; billing uses it.
+// It may be a custom price outside price_tiers ("其它" price).
 export const orderLines = pgTable(
   "order_lines",
   {
@@ -188,8 +193,10 @@ export const orderLines = pgTable(
     kind: mealKind("kind").notNull(),
     unitPrice: integer("unit_price").notNull(),
     quantity: integer("quantity").notNull(),
+    // Free text for kind "other"; empty for every other kind.
+    label: text("label").notNull().default(""),
   },
-  (t) => [unique().on(t.orderId, t.kind, t.unitPrice)],
+  (t) => [unique().on(t.orderId, t.kind, t.unitPrice, t.label)],
 );
 
 // Audit trail of every order change; also drives dashboard highlights.

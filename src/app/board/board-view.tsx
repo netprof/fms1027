@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Board, BoardSite } from "@/lib/board";
 import {
-  KIND_LABEL,
   MEAL_KINDS,
   SLOT_LABEL,
   currentSlot,
+  lineLabel,
   taipeiDate,
   type MealSlot,
 } from "@/lib/meals";
@@ -33,6 +33,7 @@ function siteStyle(site: BoardSite, now: number): string {
 }
 
 const sum = (lines: OrderLine[]) => lines.reduce((n, l) => n + l.quantity, 0);
+const lineKey = (l: OrderLine) => `${l.kind}:${l.unitPrice}:${l.label ?? ""}`;
 
 // "葷20 素3" — prices shown only when they differ from the site's own price.
 function LineSummary({ site }: { site: BoardSite }) {
@@ -40,8 +41,8 @@ function LineSummary({ site }: { site: BoardSite }) {
   return (
     <span className="flex flex-wrap justify-end gap-x-2">
       {site.lines.map((l) => (
-        <span key={`${l.kind}:${l.unitPrice}`}>
-          <span className="text-zinc-500">{KIND_LABEL[l.kind]}</span>
+        <span key={lineKey(l)}>
+          <span className="text-zinc-500">{lineLabel(l)}</span>
           <span className="font-semibold tabular-nums">{l.quantity}</span>
           {l.unitPrice !== site.unitPrice && (
             <span className="text-xs text-zinc-500">@{l.unitPrice}</span>
@@ -55,21 +56,21 @@ function LineSummary({ site }: { site: BoardSite }) {
 function Totals({ lines }: { lines: OrderLine[] }) {
   const byKey = new Map<string, OrderLine>();
   for (const l of lines) {
-    const key = `${l.kind}:${l.unitPrice}`;
-    const t = byKey.get(key) ?? { ...l, quantity: 0 };
+    const t = byKey.get(lineKey(l)) ?? { ...l, quantity: 0 };
     t.quantity += l.quantity;
-    byKey.set(key, t);
+    byKey.set(lineKey(l), t);
   }
   const rows = [...byKey.values()].sort(
     (a, b) =>
       MEAL_KINDS.indexOf(a.kind) - MEAL_KINDS.indexOf(b.kind) ||
-      b.unitPrice - a.unitPrice,
+      b.unitPrice - a.unitPrice ||
+      (a.label ?? "").localeCompare(b.label ?? ""),
   );
   return (
     <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
       {rows.map((l) => (
-        <span key={`${l.kind}:${l.unitPrice}`}>
-          {KIND_LABEL[l.kind]} {l.unitPrice} 元{" "}
+        <span key={lineKey(l)}>
+          {lineLabel(l)} {l.unitPrice} 元{" "}
           <b className="text-xl tabular-nums">{l.quantity}</b>
         </span>
       ))}

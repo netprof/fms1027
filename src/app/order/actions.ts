@@ -94,7 +94,8 @@ export async function submitOrder(
       (l) =>
         isMealKind(l?.kind) &&
         Number.isInteger(l.unitPrice) &&
-        Number.isInteger(l.quantity),
+        Number.isInteger(l.quantity) &&
+        (l.label === undefined || typeof l.label === "string"),
     )
   ) {
     return { ok: false, error: "參數不正確" };
