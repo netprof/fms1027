@@ -1,0 +1,53 @@
+# Builds on every push to main and deploys to Azure App Service (Linux).
+# One-time setup (OIDC login, secrets, app settings): docs/setup-notes.md → "Azure".
+# The build needs no database or secrets; those live in the web app's settings.
+name: Deploy to Azure
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write # OIDC login to Azure, no stored password
+  contents: read
+
+concurrency:
+  group: azure-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+        env:
+          BUILD_STANDALONE: "1"
+
+      # .next/standalone is a self-contained server (server.js + traced
+      # node_modules); static assets and public/ are copied in beside it.
+      - name: Package
+        run: |
+          cp -r public .next/standalone/
+          cp -r .next/static .next/standalone/.next/
+          cd .next/standalone && zip -qr ../../app.zip .
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ vars.AZURE_WEBAPP_NAME }}
+          package: app.zip

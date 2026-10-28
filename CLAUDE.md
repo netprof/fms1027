@@ -18,6 +18,7 @@ Product spec (Traditional Chinese): [docs/spec.md](docs/spec.md)
 - `npm run db:studio`: Drizzle Studio
 - `npm run orders:generate -- [from] [to]`: create missing standing orders for a date range (default today), e.g. after downtime
 - `npm run db:seed`: wipe every table and load sample data (`scripts/seed.ts`, dev only)
+- `npm run admin:create -- <username> <姓名> [電話]`: create (or reset) an admin login without touching other data; prints a random password unless `ADMIN_PASSWORD` is set. For a fresh production database
 
 ## Layout
 
@@ -44,6 +45,7 @@ Product spec (Traditional Chinese): [docs/spec.md](docs/spec.md)
 - With Cache Components, read cookies/session only inside a `<Suspense>` boundary, and don't call `new Date()` before an uncached read in server components (compare times in SQL instead). `usePathname()` in a client component must also sit inside a `<Suspense>` boundary (dynamic routes fail the build otherwise)
 - `"use server"` files may only export async functions; put shared constants elsewhere (e.g. `src/lib/meals.ts`)
 - `scripts/`: dev scripts run with `tsx`
+- `.github/workflows/azure.yml`: on push to `main`, builds with `BUILD_STANDALONE=1` (`output: "standalone"` in `next.config.ts`) and deploys to Azure App Service; setup in `docs/setup-notes.md` → Azure. The build must not need a database: a GET route handler that doesn't read the request is prerendered at build time unless it calls `await connection()` first
 - `drizzle/`: generated migrations
 
 ## Conventions
