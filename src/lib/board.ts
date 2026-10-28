@@ -1,5 +1,5 @@
 // Data for the dashboard: routes in order, their sites in delivery order and
-// each site's order for one date and meal slot.
+// each site's order for one date and meal slot, with per-line change marks.
 import { and, asc, desc, eq, inArray, ne } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -8,6 +8,7 @@ import {
   orderChanges,
   orderLines,
   orders,
+  priceTiers,
   routeDriverOverrides,
   routes,
   siteMealPlans,
@@ -18,16 +19,21 @@ import { isServiceDay, normalizeLines, type OrderLine } from "./orders";
 
 export type ChangeKind = "new" | "modified" | "cancelled";
 
+export type BoardLine = OrderLine & {
+  // Latest change to this line by a customer or staff, not the daily default.
+  change: { kind: ChangeKind; at: string; afterCutoff: boolean } | null;
+  // Staff changed this line after its cutoff at some point.
+  staffAfterCutoff: boolean;
+};
+
 export type BoardSite = {
   siteId: number;
   name: string;
   companyName: string;
   unitPrice: number;
-  lines: OrderLine[];
-  // Latest change by a customer or staff, not the daily default.
-  lastChange: { kind: ChangeKind; at: string; afterCutoff: boolean } | null;
-  // Staff changed this order after a cutoff at some point today.
-  staffAfterCutoff: boolean;
+  lines: BoardLine[];
+  // Lines cancelled by a change, with the quantity they had before.
+  removed: BoardLine[];
 };
 
 export type BoardRoute = {
@@ -42,61 +48,94 @@ export type Board = {
   date: string;
   slot: MealSlot;
   serviceDay: boolean;
+  // Highest first; the dashboard colours prices by this order.
+  priceTiers: number[];
   routes: BoardRoute[];
   serverNow: string;
 };
 
-const total = (lines: OrderLine[] | undefined) =>
-  (lines ?? []).reduce((sum, l) => sum + l.quantity, 0);
+type Mark = Omit<BoardLine, keyof OrderLine> & { previous: OrderLine };
 
-function classify(before: OrderLine[], after: OrderLine[]): ChangeKind {
-  if (total(after) === 0) return "cancelled";
-  if (total(before) === 0) return "new";
-  return "modified";
+const lineKey = (l: OrderLine) => `${l.kind}:${l.unitPrice}:${l.label ?? ""}`;
+const snapshot = (value: unknown) =>
+  normalizeLines((value as { lines?: OrderLine[] } | null)?.lines ?? []);
+
+// Replays an order's changes oldest first and keeps, per line, the last one
+// that touched it.
+function markLines(
+  changes: { before: unknown; after: unknown; createdAt: Date; source: string; afterCutoff: boolean }[],
+) {
+  const marks = new Map<string, Mark>();
+  for (const change of changes) {
+    const before = new Map(snapshot(change.before).map((l) => [lineKey(l), l]));
+    const after = new Map(snapshot(change.after).map((l) => [lineKey(l), l]));
+    for (const key of new Set([...before.keys(), ...after.keys()])) {
+      const b = before.get(key);
+      const a = after.get(key);
+      if (b?.quantity === a?.quantity) continue;
+      const staffAfterCutoff = change.source === "staff" && change.afterCutoff;
+      marks.set(key, {
+        change: {
+          kind: !a ? "cancelled" : !b ? "new" : "modified",
+          at: change.createdAt.toISOString(),
+          afterCutoff: staffAfterCutoff,
+        },
+        staffAfterCutoff:
+          staffAfterCutoff || (marks.get(key)?.staffAfterCutoff ?? false),
+        previous: (b ?? a)!,
+      });
+    }
+  }
+  return marks;
 }
 
 export async function getBoard(date: string, slot: MealSlot): Promise<Board> {
-  const [routeRows, overrides, people, plans, orderRows] = await Promise.all([
-    db
-      .select()
-      .from(routes)
-      .where(and(eq(routes.slot, slot), eq(routes.active, true)))
-      .orderBy(asc(routes.sortOrder), asc(routes.id)),
-    db
-      .select()
-      .from(routeDriverOverrides)
-      .where(eq(routeDriverOverrides.date, date)),
-    db
-      .select({ id: employees.id, name: employees.name, phone: employees.phone })
-      .from(employees),
-    db
-      .select({
-        siteId: sites.id,
-        name: sites.name,
-        companyName: companies.name,
-        routeId: siteMealPlans.routeId,
-        unitPrice: siteMealPlans.unitPrice,
-      })
-      .from(siteMealPlans)
-      .innerJoin(sites, eq(sites.id, siteMealPlans.siteId))
-      .innerJoin(companies, eq(companies.id, sites.companyId))
-      .where(and(eq(siteMealPlans.slot, slot), eq(sites.active, true)))
-      .orderBy(asc(siteMealPlans.routeSeq), asc(sites.id)),
-    db
-      .select({ id: orders.id, siteId: orders.siteId })
-      .from(orders)
-      .where(and(eq(orders.date, date), eq(orders.slot, slot))),
-  ]);
+  const [routeRows, overrides, people, plans, orderRows, tiers] =
+    await Promise.all([
+      db
+        .select()
+        .from(routes)
+        .where(and(eq(routes.slot, slot), eq(routes.active, true)))
+        .orderBy(asc(routes.sortOrder), asc(routes.id)),
+      db
+        .select()
+        .from(routeDriverOverrides)
+        .where(eq(routeDriverOverrides.date, date)),
+      db
+        .select({ id: employees.id, name: employees.name, phone: employees.phone })
+        .from(employees),
+      db
+        .select({
+          siteId: sites.id,
+          name: sites.name,
+          companyName: companies.name,
+          routeId: siteMealPlans.routeId,
+          unitPrice: siteMealPlans.unitPrice,
+        })
+        .from(siteMealPlans)
+        .innerJoin(sites, eq(sites.id, siteMealPlans.siteId))
+        .innerJoin(companies, eq(companies.id, sites.companyId))
+        .where(and(eq(siteMealPlans.slot, slot), eq(sites.active, true)))
+        .orderBy(asc(siteMealPlans.routeSeq), asc(sites.id)),
+      db
+        .select({ id: orders.id, siteId: orders.siteId })
+        .from(orders)
+        .where(and(eq(orders.date, date), eq(orders.slot, slot))),
+      db
+        .select({ price: priceTiers.price })
+        .from(priceTiers)
+        .orderBy(desc(priceTiers.price)),
+    ]);
 
   const orderIds = orderRows.map((o) => o.id);
-  const [lineRows, latestChanges, staffFlags] = orderIds.length
+  const [lineRows, changeRows] = orderIds.length
     ? await Promise.all([
         db
           .select()
           .from(orderLines)
           .where(inArray(orderLines.orderId, orderIds)),
         db
-          .selectDistinctOn([orderChanges.orderId])
+          .select()
           .from(orderChanges)
           .where(
             and(
@@ -104,55 +143,48 @@ export async function getBoard(date: string, slot: MealSlot): Promise<Board> {
               ne(orderChanges.source, "system"),
             ),
           )
-          .orderBy(orderChanges.orderId, desc(orderChanges.createdAt)),
-        db
-          .select({ orderId: orderChanges.orderId })
-          .from(orderChanges)
-          .where(
-            and(
-              inArray(orderChanges.orderId, orderIds),
-              eq(orderChanges.source, "staff"),
-              eq(orderChanges.afterCutoff, true),
-            ),
-          )
-          .groupBy(orderChanges.orderId),
+          .orderBy(asc(orderChanges.orderId), asc(orderChanges.createdAt)),
       ])
-    : [[], [], []];
+    : [[], []];
 
   const orderBySite = new Map(orderRows.map((o) => [o.siteId, o.id]));
-  const staffFlagged = new Set(staffFlags.map((f) => f.orderId));
-  const changeByOrder = new Map(latestChanges.map((c) => [c.orderId, c]));
   const peopleById = new Map(people.map((p) => [p.id, p]));
   const overrideByRoute = new Map(overrides.map((o) => [o.routeId, o]));
 
   const toSite = (plan: (typeof plans)[number]): BoardSite => {
     const orderId = orderBySite.get(plan.siteId);
-    const change = orderId ? changeByOrder.get(orderId) : undefined;
-    const snapshot = (value: unknown) =>
-      (value as { lines?: OrderLine[] } | null)?.lines ?? [];
+    const marks = markLines(changeRows.filter((c) => c.orderId === orderId));
+    const current = normalizeLines(
+      lineRows
+        .filter((l) => l.orderId === orderId)
+        .map(({ kind, unitPrice, quantity, label }) => ({
+          kind,
+          unitPrice,
+          quantity,
+          label,
+        })),
+    );
+    const currentKeys = new Set(current.map(lineKey));
+    const withMark = (line: OrderLine): BoardLine => {
+      const mark = marks.get(lineKey(line));
+      return {
+        ...line,
+        change: mark?.change ?? null,
+        staffAfterCutoff: mark?.staffAfterCutoff ?? false,
+      };
+    };
+
     return {
       siteId: plan.siteId,
       name: plan.name,
       companyName: plan.companyName,
       unitPrice: plan.unitPrice,
-      lines: normalizeLines(
-        lineRows
-          .filter((l) => l.orderId === orderId)
-          .map(({ kind, unitPrice, quantity, label }) => ({
-            kind,
-            unitPrice,
-            quantity,
-            label,
-          })),
-      ),
-      lastChange: change
-        ? {
-            kind: classify(snapshot(change.before), snapshot(change.after)),
-            at: change.createdAt.toISOString(),
-            afterCutoff: change.afterCutoff,
-          }
-        : null,
-      staffAfterCutoff: orderId ? staffFlagged.has(orderId) : false,
+      lines: current.map(withMark),
+      removed: [...marks.entries()]
+        .filter(
+          ([key, m]) => m.change?.kind === "cancelled" && !currentKeys.has(key),
+        )
+        .map(([, m]) => withMark(m.previous)),
     };
   };
 
@@ -160,6 +192,7 @@ export async function getBoard(date: string, slot: MealSlot): Promise<Board> {
     date,
     slot,
     serviceDay: await isServiceDay(date),
+    priceTiers: tiers.map((t) => t.price),
     serverNow: new Date().toISOString(),
     routes: routeRows.map((route) => {
       const override = overrideByRoute.get(route.id);

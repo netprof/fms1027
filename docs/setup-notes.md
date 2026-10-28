@@ -17,6 +17,7 @@
 
 Newest first, with absolute dates.
 
+- 2026-10-28: Dashboard shows each order line as a meal-kind icon coloured by price tier, and highlights changes per line (computed in `src/lib/board.ts` by replaying `order_changes`) instead of per site.
 - 2026-10-28: Added meal kinds 無豬 (`no_pork`) and 其它 (`other`, free-text `label` on order and default lines), and custom prices outside `price_tiers`. Migration `0002_rapid_prism` was hand-reordered so the `label` columns exist before the keys that use them.
 - 2026-10-28: Added the order service, `/board` with live updates over SSE (Postgres LISTEN/NOTIFY), `/order` simulated ordering, and `npm run db:seed` with sample data.
 - 2026-10-28: Added the phase-1 schema (migration `0001_material_vengeance`).
