@@ -6,6 +6,8 @@ Next.js 16 (App Router, TypeScript, Tailwind v4) + PostgreSQL 17 via Drizzle ORM
 
 Setup, one-time context and changelog: [docs/setup-notes.md](docs/setup-notes.md)
 
+Product spec (Traditional Chinese): [docs/spec.md](docs/spec.md)
+
 ## Commands
 
 - `npm run db:up`: start PostgreSQL in Docker
