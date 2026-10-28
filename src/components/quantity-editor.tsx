@@ -1,8 +1,9 @@
 "use client";
 
 // The meal kind × price grid shared by the simulated order page (customer
-// rules: past-cutoff rows are locked) and the back office (staff may edit
-// past cutoff; those rows are only marked).
+// rules: past-cutoff rows are locked), the back office (staff may edit past
+// cutoff; those rows are only marked) and a site's default quantities (no
+// cutoffs, no custom price).
 import {
   KIND_LABEL,
   MEAL_KINDS,
@@ -65,8 +66,9 @@ export function QuantityEditor({
   prices,
   orderPrices,
   cutoffs,
-  now,
-  lockClosed,
+  now = 0,
+  lockClosed = false,
+  allowCustomPrice = true,
 }: {
   state: EditorState;
   onChange: (state: EditorState) => void;
@@ -74,15 +76,18 @@ export function QuantityEditor({
   prices: number[];
   // Prices on the loaded order, so custom prices keep their own column.
   orderPrices: number[];
-  cutoffs: Record<MealKind, string>;
-  now: number;
+  // Omitted: no cutoff column and nothing is ever closed.
+  cutoffs?: Record<MealKind, string>;
+  now?: number;
   // true: rows past cutoff are disabled (customers). false: staff may edit.
-  lockClosed: boolean;
+  lockClosed?: boolean;
+  allowCustomPrice?: boolean;
 }) {
-  const closed = (kind: MealKind) => now >= new Date(cutoffs[kind]).getTime();
+  const closed = (kind: MealKind) =>
+    !!cutoffs && now >= new Date(cutoffs[kind]).getTime();
   const columns: Column[] = [
     ...new Set([defaultPrice, ...prices, ...orderPrices]),
-    CUSTOM,
+    ...(allowCustomPrice ? [CUSTOM as Column] : []),
   ];
   const setQuantity = (key: string, value: string) =>
     onChange({
@@ -121,7 +126,7 @@ export function QuantityEditor({
               </th>
             ),
           )}
-          <th className="py-2 font-normal">截止</th>
+          {cutoffs && <th className="py-2 font-normal">截止</th>}
         </tr>
       </thead>
       <tbody>
@@ -164,12 +169,14 @@ export function QuantityEditor({
                   />
                 </td>
               ))}
-              <td
-                className={`py-2 text-xs ${isClosed ? "text-red-600" : "text-zinc-500"}`}
-              >
-                {formatCutoff(new Date(cutoffs[kind]))}
-                {isClosed && " 已截止"}
-              </td>
+              {cutoffs && (
+                <td
+                  className={`py-2 text-xs ${isClosed ? "text-red-600" : "text-zinc-500"}`}
+                >
+                  {formatCutoff(new Date(cutoffs[kind]))}
+                  {isClosed && " 已截止"}
+                </td>
+              )}
             </tr>
           );
         })}

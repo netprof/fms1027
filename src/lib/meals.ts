@@ -16,6 +16,9 @@ export const MEAL_KINDS = [
 ] as const;
 export type MealKind = (typeof MEAL_KINDS)[number];
 
+// A full menu: one main dish, six side dishes, one soup.
+export const SIDE_DISH_COUNT = 6;
+
 export const SLOT_LABEL: Record<MealSlot, string> = {
   lunch: "午餐",
   dinner: "晚餐",

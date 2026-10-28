@@ -12,11 +12,30 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* Back-office palette, after PrimeNG Ultima (indigo theme). */
+@theme {
+  --color-primary: #3f51b5;
+  --color-primary-dark: #303f9f;
+  --color-primary-soft: #e8eaf6;
+  --color-primary-ink: #1a237e;
+  --color-ground: #f1f5f9;
+  --color-ink: #0f172a;
+  --color-ink-muted: #475569;
+  --font-admin: var(--font-roboto), "Microsoft JhengHei", "PingFang TC",
+    "Noto Sans TC", sans-serif;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
   }
+}
+
+/* Back office: theme-coloured checkboxes and radios. */
+.font-admin input[type="checkbox"],
+.font-admin input[type="radio"] {
+  accent-color: var(--color-primary);
 }
 
 /* Dashboard: a changed quantity scrolls up through delta → value → delta,

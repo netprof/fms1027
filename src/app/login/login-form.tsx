@@ -14,24 +14,24 @@ export function LoginForm() {
   return (
     <form action={action} className="space-y-4">
       <input type="hidden" name="next" value={next} />
-      <label className="flex flex-col gap-1 text-sm">
+      <label className="flex flex-col gap-1 text-sm font-medium text-ink-muted">
         帳號
         <input
           name="username"
           autoComplete="username"
           defaultValue={state?.username}
           required
-          className="rounded border border-zinc-300 bg-transparent p-2 text-base"
+          className="rounded-md border border-slate-300 bg-white px-3 py-2 text-base outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
         />
       </label>
-      <label className="flex flex-col gap-1 text-sm">
+      <label className="flex flex-col gap-1 text-sm font-medium text-ink-muted">
         密碼
         <input
           name="password"
           type="password"
           autoComplete="current-password"
           required
-          className="rounded border border-zinc-300 bg-transparent p-2 text-base"
+          className="rounded-md border border-slate-300 bg-white px-3 py-2 text-base outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
         />
       </label>
       {state?.error && (
@@ -42,7 +42,7 @@ export function LoginForm() {
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded bg-zinc-900 py-2 text-white disabled:opacity-40"
+        className="w-full rounded-md bg-primary py-2 font-medium text-white shadow-sm hover:bg-primary-dark disabled:opacity-40"
       >
         {pending ? "登入中…" : "登入"}
       </button>

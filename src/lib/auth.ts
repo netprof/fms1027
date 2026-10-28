@@ -6,6 +6,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { and, eq, gt, sql } from "drizzle-orm";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import { db } from "@/db";
 import { employees, sessions } from "@/db/schema";
 import { verifyPassword } from "./password";
@@ -64,7 +65,8 @@ export async function endSession() {
   jar.delete(SESSION_COOKIE);
 }
 
-export async function getCurrentEmployee(): Promise<Employee | null> {
+// cache(): the layout nav, the page and its actions share one lookup per request.
+export const getCurrentEmployee = cache(async (): Promise<Employee | null> => {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
   const [row] = await db
@@ -80,10 +82,18 @@ export async function getCurrentEmployee(): Promise<Employee | null> {
       ),
     );
   return row ?? null;
-}
+});
 
 export async function requireEmployee(): Promise<Employee> {
   const employee = await getCurrentEmployee();
   if (!employee) redirect("/login");
+  return employee;
+}
+
+// Base data (customers, routes, menus, accounts…) is admin-only. Staff who
+// land on those pages go back to phone orders.
+export async function requireAdmin(): Promise<Employee> {
+  const employee = await requireEmployee();
+  if (employee.role !== "admin") redirect("/admin/orders");
   return employee;
 }

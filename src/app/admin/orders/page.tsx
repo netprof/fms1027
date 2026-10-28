@@ -1,6 +1,5 @@
 import { asc, eq } from "drizzle-orm";
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import { db } from "@/db";
 import {
   companies,
@@ -11,21 +10,19 @@ import {
 } from "@/db/schema";
 import { requireEmployee } from "@/lib/auth";
 import { currentSlot, taipeiDate, type MealSlot } from "@/lib/meals";
+import { AdminPage } from "../admin-page";
 import { StaffOrderEditor, type StaffSite } from "./staff-order-editor";
 
 export const metadata: Metadata = { title: "電話改單" };
 
 export default function StaffOrdersPage() {
   return (
-    <main className="mx-auto w-full max-w-5xl p-4 sm:p-6">
-      <h1 className="mb-1 text-2xl font-semibold">電話改單</h1>
-      <p className="mb-6 text-sm text-zinc-500">
-        員工代客戶調整訂單，不受截止時間限制；截止後的調整會在儀表板以藍色標示，並記錄原因。
-      </p>
-      <Suspense fallback={<p className="text-zinc-500">載入中…</p>}>
-        <Loader />
-      </Suspense>
-    </main>
+    <AdminPage
+      title="電話改單"
+      note="員工代客戶調整訂單，不受截止時間限制；截止後的調整會在儀表板以藍色標示，並記錄原因。"
+    >
+      <Loader />
+    </AdminPage>
   );
 }
 

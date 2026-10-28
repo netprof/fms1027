@@ -150,7 +150,7 @@ export function StaffOrderEditor({
             <input
               type="search"
               placeholder="例如：甲子、阿達"
-              className="rounded border border-zinc-300 bg-transparent p-2 text-base"
+              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-base outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
               value={query}
               onChange={(e) => search(e.target.value)}
             />
@@ -158,7 +158,7 @@ export function StaffOrderEditor({
           <label className="flex flex-col gap-1 text-sm sm:col-span-3">
             客戶廠區（{matches.length} 筆）
             <select
-              className="rounded border border-zinc-300 bg-transparent p-2 text-base"
+              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-base outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
               value={siteId}
               onChange={(e) => setSiteId(Number(e.target.value))}
             >
@@ -174,7 +174,7 @@ export function StaffOrderEditor({
             日期
             <input
               type="date"
-              className="rounded border border-zinc-300 bg-transparent p-2 text-base"
+              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-base outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
               value={date}
               onChange={(e) => e.target.value && setDate(e.target.value)}
             />
@@ -182,7 +182,7 @@ export function StaffOrderEditor({
           <label className="flex flex-col gap-1 text-sm">
             餐次
             <select
-              className="rounded border border-zinc-300 bg-transparent p-2 text-base"
+              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-base outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
               value={slot}
               onChange={(e) => setSlot(e.target.value as MealSlot)}
             >
@@ -220,7 +220,7 @@ export function StaffOrderEditor({
                 <input
                   maxLength={100}
                   required
-                  className="rounded border border-zinc-300 bg-transparent p-2 text-base"
+                  className="rounded-md border border-slate-300 bg-white px-3 py-2 text-base outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                 />
@@ -229,7 +229,7 @@ export function StaffOrderEditor({
                 type="button"
                 onClick={submit}
                 disabled={pending}
-                className="rounded bg-zinc-900 px-5 py-2 text-white disabled:opacity-40"
+                className="rounded-md bg-primary px-5 py-2 font-medium text-white shadow-sm hover:bg-primary-dark disabled:opacity-40"
               >
                 {pending ? "處理中…" : "儲存調整"}
               </button>
