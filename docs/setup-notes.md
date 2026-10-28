@@ -18,7 +18,7 @@ With `LINE_DRY_RUN=1` nothing is sent to LINE; replies and pushes are logged as 
 
 ## Azure
 
-The app runs on Azure App Service (Linux, Node 22). The database is Azure Database for PostgreSQL flexible server 17. Serverless hosting (Static Web Apps, Functions) doesn't fit: the dashboard keeps SSE connections and a LISTEN connection open, and the scheduler runs inside the server. Every push to `main` builds and deploys through `.github/workflows/azure.yml`.
+The app runs on Azure App Service (Linux, Node 22). The database is Azure Database for PostgreSQL flexible server 17. Serverless hosting (Static Web Apps, Functions) doesn't fit: the dashboard keeps SSE connections and a LISTEN connection open, and the scheduler runs inside the server. Every push to `develop` builds and deploys through `.github/workflows/azure.yml` to the web app `fms1027-demo` (resource group `rg-fms-demo`, East Asia; database server `fms1027-db-xxxx`, database `fms_demo`). It was first set up through the portal's Deployment Center, which created the OIDC login and the `AZUREAPPSERVICE_*` secrets. The workflow it generated shipped the whole repo, lost `node_modules/.bin` on the way and failed with `next: not found`, so it was replaced.
 
 The build sets `BUILD_STANDALONE=1`, which gives `output: "standalone"`. `.next/standalone` is a self-contained `server.js` with only the traced `node_modules`. The build needs no database or secrets.
 
@@ -31,10 +31,11 @@ One-time setup (`<app>` is the web app name, `<db>` the database server):
      --sku-name Standard_B1ms --storage-size 32 --admin-user fmsadmin --admin-password '<password>' \
      --public-access 0.0.0.0
    az postgres flexible-server db create -g fms-rg -s <db> -d fms
+   az postgres flexible-server firewall-rule create -g fms-rg -s <db> -n AllowAzureServices \n     --start-ip-address 0.0.0.0 --end-ip-address 0.0.0.0
    az appservice plan create -g fms-rg -n fms-plan --is-linux --sku B1
    az webapp create -g fms-rg -p fms-plan -n <app> --runtime "NODE:22-lts"
    ```
-   `--public-access 0.0.0.0` lets only Azure services reach the database.
+   The `0.0.0.0` rule lets Azure services, including the web app, reach the database. Without it the app can't connect.
 2. Configure the web app:
    ```bash
    az webapp config set -g fms-rg -n <app> --always-on true \
@@ -48,11 +49,11 @@ One-time setup (`<app>` is the web app name, `<db>` the database server):
    - `HOSTNAME=0.0.0.0` makes `server.js` listen on all interfaces. The container's own `HOSTNAME` would be used otherwise. App Service sets `PORT` itself.
    - Leave out `TRUST_SYSTEM_CA` (company network only) and `SCM_DO_BUILD_DURING_DEPLOYMENT` (the package is already built).
    - `sslmode=verify-full` checks the server certificate. `require` does the same in `pg` 8 but prints a warning.
-3. Let GitHub Actions log in through OIDC, with no stored password:
+3. Let GitHub Actions log in through OIDC, with no stored password. Deployment Center already did this for `fms1027-demo`; these steps are for a new app, and the workflow's secret names and `app-name` must then be changed to match:
    ```bash
    APP_ID=$(az ad app create --display-name fms-github-deploy --query appId -o tsv)
    az ad sp create --id $APP_ID
-   az ad app federated-credential create --id $APP_ID --parameters '{"name":"main","issuer":"https://token.actions.githubusercontent.com","subject":"repo:netprof/fms1027:ref:refs/heads/main","audiences":["api://AzureADTokenExchange"]}'
+   az ad app federated-credential create --id $APP_ID --parameters '{"name":"main","issuer":"https://token.actions.githubusercontent.com","subject":"repo:netprof/fms1027:ref:refs/heads/develop","audiences":["api://AzureADTokenExchange"]}'
    az role assignment create --assignee $APP_ID --role "Website Contributor" \
      --scope $(az webapp show -g fms-rg -n <app> --query id -o tsv)
    gh secret set AZURE_CLIENT_ID --body $APP_ID
@@ -60,15 +61,15 @@ One-time setup (`<app>` is the web app name, `<db>` the database server):
    gh secret set AZURE_SUBSCRIPTION_ID --body $(az account show --query id -o tsv)
    gh variable set AZURE_WEBAPP_NAME --body <app>
    ```
-   The credential only accepts runs on `main`.
+   The credential only accepts runs on `develop`.
 4. From a machine that can reach port 5432, apply migrations and create the first admin. The company network blocks 5432.
    ```bash
-   az postgres flexible-server firewall-rule create -g fms-rg -n <db> --rule-name me --start-ip-address <your IP>
+   az postgres flexible-server firewall-rule create -g fms-rg -s <db> -n me --start-ip-address <your IP> --end-ip-address <your IP>
    DATABASE_URL="<as above>" npm run db:migrate
    DATABASE_URL="<as above>" npm run admin:create -- admin 管理員 0900-000-000
    ```
    `admin:create` prints a random password once; set `ADMIN_PASSWORD` to choose one instead. Run it again for a username that already exists to reset that login as admin and lift its lockout. Don't run `db:seed` here: it wipes every table. Remove the firewall rule afterwards.
-5. Push to `main`, or run the workflow by hand from the Actions tab. Then check `https://<app>.azurewebsites.net/api/health`.
+5. Push to `develop`, or run the workflow by hand from the Actions tab. Then check `https://<app>.azurewebsites.net/api/health`.
 6. In the LINE Developers console, set the webhook URL to `https://<app>.azurewebsites.net/api/line/webhook` and press Verify.
 
 Run migrations by hand before deploying a change that adds one. The workflow doesn't migrate.
@@ -81,7 +82,7 @@ Run migrations by hand before deploying a change that adds one. The workflow doe
 
 ## Changelog
 
-- 2026-10-28: Azure deployment: `.github/workflows/azure.yml` builds a standalone server (`BUILD_STANDALONE=1`) and deploys it to App Service on every push to `main`. Added `npm run admin:create` for a production database's first admin. The login rate limit now drops the port Azure appends to `x-forwarded-for`. `/api/health` and `/api/board/events` call `connection()`, so the build no longer runs them: it used to need a database, and baked in a fixed health result.
+- 2026-10-28: Azure deployment: `.github/workflows/azure.yml` builds a standalone server (`BUILD_STANDALONE=1`) and deploys it to App Service (`fms1027-demo`) on every push to `develop`. It replaces the Deployment Center workflow `develop_fms1027-demo.yml`. Added `npm run admin:create` for a production database's first admin. The login rate limit now drops the port Azure appends to `x-forwarded-for`. `/api/health` and `/api/board/events` call `connection()`, so the build no longer runs them: it used to need a database, and baked in a fixed health result.
 
 Newest first, with absolute dates.
 
