@@ -30,9 +30,9 @@ Product spec (Traditional Chinese): [docs/spec.md](docs/spec.md)
 - `src/lib/order-view.ts`: loads what an order editor needs; validates Server Action input
 - `src/lib/auth.ts`: staff sessions (random cookie token, stored SHA-256 hashed in `sessions`). Every admin page and Server Action calls `requireEmployee()`; `src/proxy.ts` only redirects cookieless `/admin` requests to `/login`
 - `src/lib/password.ts`: scrypt hashes, no framework imports (the seed uses it)
-- `src/components/`: shared UI (`QuantityEditor` used by `/order`, `/admin/orders` and site defaults; `MenuCard`; `ActionForm` for admin Server Actions; `styles.ts` class strings)
+- `src/components/`: shared UI (`KindIcon` and `price-colors.ts` shared by the board and the route page; `QuantityEditor` used by `/order`, `/admin/orders` and site defaults; `MenuCard`; `ActionForm` for admin Server Actions; `styles.ts` class strings)
 - `src/lib/admin-form.ts`: admin Server Action helpers. Wrap every base-data action in `adminAction()` (checks the admin role, refreshes, maps validation and Postgres 23505/23503 errors to messages); read fields with `text()`/`integer()`/`date()`/`checked()` and bound ids with `id()`
-- Pages: `/board` (kitchen TV dashboard, public), `/order` (simulated customer ordering, public), `/login`, `/admin/orders` (phone-in changes by staff, with change history)
+- Pages: `/board` (kitchen TV dashboard, public), `/order` (simulated customer ordering, public), `/login`, `/admin/my-route` (driver's routes for a day, phone-first; admins can pick any driver), `/admin/orders` (phone-in changes by staff, with change history)
 - Admin-only base data (`requireAdmin()`): `/admin/companies` → `/admin/companies/[id]` → `/admin/sites/[id]` (site, per-slot plan, default quantities), `/admin/routes` → `/admin/routes/[id]` (delivery order, stand-in drivers), `/admin/menus?week=`, `/admin/holidays`, `/admin/prices`, `/admin/employees`
 - Back-office look follows PrimeNG Ultima (indigo): `src/app/admin/admin-shell.tsx` (top bar, sidebar, breadcrumb), theme colours `primary`/`ground`/`ink` in `globals.css`, Roboto from `src/app/fonts.ts`. The kitchen board keeps its own full-screen style
 - Dev logins after `db:seed`: `admin` / `admin1234`, `staff1`…`staff8` / `staff1234`

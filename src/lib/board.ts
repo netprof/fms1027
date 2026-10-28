@@ -39,6 +39,9 @@ export type BoardSite = {
   siteId: number;
   name: string;
   companyName: string;
+  address: string | null;
+  contactName: string | null;
+  contactPhone: string | null;
   unitPrice: number;
   lines: BoardLine[];
   // Lines a change set to 0 (deleted), as quantity 0 with their old price
@@ -49,6 +52,8 @@ export type BoardSite = {
 export type BoardRoute = {
   routeId: number;
   name: string;
+  // Today's driver: the stand-in if there is one, else the default.
+  driverId: number | null;
   driver: { name: string; phone: string } | null;
   standIn: boolean;
   sites: BoardSite[];
@@ -132,6 +137,9 @@ export async function getBoard(date: string, slot: MealSlot): Promise<Board> {
           siteId: sites.id,
           name: sites.name,
           companyName: companies.name,
+          address: sites.address,
+          contactName: sites.contactName,
+          contactPhone: sites.contactPhone,
           routeId: siteMealPlans.routeId,
           unitPrice: siteMealPlans.unitPrice,
         })
@@ -227,6 +235,9 @@ export async function getBoard(date: string, slot: MealSlot): Promise<Board> {
       siteId: plan.siteId,
       name: plan.name,
       companyName: plan.companyName,
+      address: plan.address,
+      contactName: plan.contactName,
+      contactPhone: plan.contactPhone,
       unitPrice: plan.unitPrice,
       lines: current.map(withMark),
       removed: [...marks.entries()]
@@ -251,6 +262,7 @@ export async function getBoard(date: string, slot: MealSlot): Promise<Board> {
       const driver = driverId ? peopleById.get(driverId) : undefined;
       return {
         routeId: route.id,
+        driverId: driverId ?? null,
         name: route.name,
         driver: driver ? { name: driver.name, phone: driver.phone } : null,
         standIn: !!override,

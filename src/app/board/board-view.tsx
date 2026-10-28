@@ -14,7 +14,8 @@ import {
   type MealSlot,
 } from "@/lib/meals";
 import type { OrderLine } from "@/lib/orders";
-import { KindIcon } from "./kind-icon";
+import { KindIcon } from "@/components/kind-icon";
+import { CUSTOM_PRICE_COLOR, priceColor } from "@/components/price-colors";
 
 const HIGHLIGHT_MS = 10 * 60_000;
 
@@ -44,20 +45,6 @@ const SOURCE_LABEL: Record<RecentChange["source"], string> = {
   line: "LINE",
   staff: "後台",
 };
-
-// Price tiers take categorical slots in fixed order, highest price first.
-// The first three are validated all-pairs for colour-vision deficiency.
-const TIER_COLORS = [
-  "#2a78d6",
-  "#eb6834",
-  "#1baf7a",
-  "#eda100",
-  "#e87ba4",
-  "#008300",
-  "#6250d6",
-  "#e34948",
-];
-const CUSTOM_PRICE_COLOR = "#6b6a65";
 
 type Prices = {
   tiers: number[];
@@ -404,10 +391,7 @@ export function BoardView() {
   const prices: Prices = {
     tiers: tierList,
     isTier: (price) => tierList.includes(price),
-    color: (price) => {
-      const i = tierList.indexOf(price);
-      return i < 0 ? CUSTOM_PRICE_COLOR : TIER_COLORS[i % TIER_COLORS.length];
-    },
+    color: (price) => priceColor(tierList, price),
   };
 
   return (

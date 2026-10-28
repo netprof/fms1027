@@ -147,7 +147,14 @@ async function main() {
       plantsUsed.set(company.id, plant + 1);
       const [site] = await db
         .insert(sites)
-        .values({ companyId: company.id, name: `${NUMERALS[plant % 10]}廠` })
+        .values({
+          companyId: company.id,
+          name: `${NUMERALS[plant % 10]}廠`,
+          // Obviously fake contact details for the drivers' route page.
+          address: `桃園市範例區示範路 ${n + 1} 號`,
+          contactName: `${"王李張陳林黃"[n % 6]}先生`,
+          contactPhone: `0900-${String(100000 + n * 37).slice(0, 3)}-${String(1000 + n).slice(-3)}`,
+        })
         .returning();
       const price = PRICES[n % PRICES.length];
 

@@ -8,6 +8,7 @@ import { Suspense, useState, type ReactNode } from "react";
 // Breadcrumb labels by path prefix; detail pages get their parent first.
 const CRUMBS: Record<string, { label: string; parent?: string }> = {
   "/admin/orders": { label: "電話改單" },
+  "/admin/my-route": { label: "我的路線" },
   "/admin/companies": { label: "客戶" },
   "/admin/companies/*": { label: "公司", parent: "/admin/companies" },
   "/admin/sites/*": { label: "廠區設定", parent: "/admin/companies" },

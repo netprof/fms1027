@@ -7,6 +7,7 @@ import {
   PhoneCall,
   Route,
   Tag,
+  Truck,
   Users,
   UtensilsCrossed,
   type LucideIcon,
@@ -21,6 +22,7 @@ const SECTIONS: { title: string; adminOnly: boolean; items: Item[] }[] = [
     title: "作業",
     adminOnly: false,
     items: [
+      { href: "/admin/my-route", label: "我的路線", icon: Truck },
       { href: "/admin/orders", label: "電話改單", icon: PhoneCall },
       { href: "/board", label: "訂餐儀表板", icon: MonitorPlay },
     ],
