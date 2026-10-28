@@ -14,7 +14,7 @@ import {
   siteMealPlans,
   sites,
 } from "@/db/schema";
-import { classifyChange, lineKey, type ChangeKind } from "./changes";
+import { lineKey, type ChangeKind } from "./changes";
 import type { MealSlot } from "./meals";
 import { isServiceDay, normalizeLines, type OrderLine } from "./orders";
 
@@ -41,7 +41,8 @@ export type BoardSite = {
   companyName: string;
   unitPrice: number;
   lines: BoardLine[];
-  // Lines cancelled by a change, with the quantity they had before.
+  // Lines a change set to 0 (deleted), as quantity 0 with their old price
+  // and label, so the board can show "−n → 0" while highlighted.
   removed: BoardLine[];
 };
 
@@ -61,7 +62,6 @@ export type RecentChange = {
   source: "customer_web" | "line" | "staff";
   employeeName: string | null;
   afterCutoff: boolean;
-  kind: ChangeKind;
   before: OrderLine[];
   after: OrderLine[];
 };
@@ -195,7 +195,6 @@ export async function getBoard(date: string, slot: MealSlot): Promise<Board> {
             ? (peopleById.get(c.employeeId)?.name ?? null)
             : null,
           afterCutoff: c.afterCutoff,
-          kind: classifyChange(before, after),
           before,
           after,
         };
@@ -234,7 +233,8 @@ export async function getBoard(date: string, slot: MealSlot): Promise<Board> {
         .filter(
           ([key, m]) => m.change?.kind === "cancelled" && !currentKeys.has(key),
         )
-        .map(([, m]) => withMark(m.previous)),
+        // A line at 0 is deleted: show it as 0; change.delta keeps the −n.
+        .map(([, m]) => withMark({ ...m.previous, quantity: 0 })),
     };
   };
 

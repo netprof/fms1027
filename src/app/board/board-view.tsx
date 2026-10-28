@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { Board, BoardLine, BoardSite, RecentChange } from "@/lib/board";
-import { describeChange, lineKey } from "@/lib/changes";
+import { diffLines, lineKey } from "@/lib/changes";
 import {
   KIND_LABEL,
   MEAL_KINDS,
@@ -294,13 +294,15 @@ function RecentChanges({ changes }: { changes: RecentChange[] }) {
         ) : (
           <ol className="flex-1 overflow-y-auto text-sm">
             {changes.map((c) => {
-              const status = STATUS[c.afterCutoff ? "staff" : c.kind];
+              // Each line carries its own state (a line set to 0 is a
+              // deletion); the left edge only marks after-cutoff staff edits.
+              const edge = c.afterCutoff ? STATUS.staff : null;
               return (
                 <li
                   key={c.id}
-                  title={status.label}
+                  title={edge?.label}
                   className="flex items-baseline gap-2 border-b border-l-4 border-b-zinc-100 py-0.5 pl-2"
-                  style={{ borderLeftColor: status.solid }}
+                  style={{ borderLeftColor: edge?.solid ?? "transparent" }}
                 >
                   <span className="shrink-0 tabular-nums text-zinc-500">
                     {new Date(c.at).toLocaleTimeString("zh-TW", {
@@ -311,8 +313,17 @@ function RecentChanges({ changes }: { changes: RecentChange[] }) {
                     })}
                   </span>
                   <span className="shrink-0 font-medium">{c.siteLabel}</span>
-                  <span className="min-w-0 flex-1 truncate">
-                    {describeChange(c.before, c.after)}
+                  <span className="flex min-w-0 flex-1 flex-wrap gap-1">
+                    {diffLines(c.before, c.after).map((d) => (
+                      <span
+                        key={d.key}
+                        title={STATUS[d.kind].label}
+                        className={`rounded px-1 ${STATUS[d.kind].className ?? ""}`}
+                        style={{ background: STATUS[d.kind].tint }}
+                      >
+                        {d.text}
+                      </span>
+                    ))}
                   </span>
                   <span className="shrink-0 text-xs text-zinc-500">
                     {SOURCE_LABEL[c.source]}
