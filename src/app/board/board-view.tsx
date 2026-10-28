@@ -76,20 +76,23 @@ function lineStatus(line: BoardLine, now: number): Status | null {
 
 const sum = (lines: OrderLine[]) => lines.reduce((n, l) => n + l.quantity, 0);
 
-const FLIP_MS = 4000; // matches the flip-* animations in globals.css
+const ROLL_MS = 6000; // matches the roll animation in globals.css
 
-// Alternates "+1" and "7" in one cell. The delay is set from the clock at
-// mount, so chips mounted at different times still flip together.
-function FlipNumber({ delta, value }: { delta: number; value: number }) {
+// Scrolls "+1" → "7" → "+1" … every 3 s. The delay is set from the clock at
+// mount, so chips mounted at different times still scroll together.
+function RollNumber({ delta, value }: { delta: number; value: number }) {
   const [mountedAt] = useState(() => Date.now());
-  const delay = { animationDelay: `-${mountedAt % FLIP_MS}ms` };
+  const signed = delta > 0 ? `+${delta}` : `−${-delta}`;
   return (
-    <span className="inline-grid justify-items-end">
-      <span className="flip-first col-start-1 row-start-1" style={delay}>
-        {delta > 0 ? `+${delta}` : `−${-delta}`}
-      </span>
-      <span className="flip-second col-start-1 row-start-1" style={delay}>
-        {value}
+    <span className="roll-window" aria-label={`${signed}，共 ${value}`}>
+      <span
+        className="roll-track"
+        style={{ animationDelay: `-${mountedAt % ROLL_MS}ms` }}
+        aria-hidden
+      >
+        <span>{signed}</span>
+        <span>{value}</span>
+        <span>{signed}</span>
       </span>
     </span>
   );
@@ -120,7 +123,7 @@ function LineChip({
       )}
       <span className="font-semibold tabular-nums">
         {delta ? (
-          <FlipNumber delta={delta} value={line.quantity} />
+          <RollNumber delta={delta} value={line.quantity} />
         ) : (
           line.quantity
         )}

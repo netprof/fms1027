@@ -19,25 +19,29 @@
   }
 }
 
-/* Dashboard: a changed quantity alternates between its delta and its value.
-   Both layers share one grid cell; the page sets a negative delay from the
-   clock so every chip flips in step. */
-@keyframes flip-first {
-  0%, 45% { opacity: 1; }
-  50%, 95% { opacity: 0; }
-  100% { opacity: 1; }
+/* Dashboard: a changed quantity scrolls up through delta → value → delta,
+   3 s each (6 s cycle). The third row repeats the first, so snapping back
+   to the top at 100% is invisible. The page sets a negative delay from the
+   clock so every chip scrolls in step. Deliberately not disabled under
+   prefers-reduced-motion: this is a TV status board and Windows reports
+   reduced motion whenever its animation effects are off. */
+@keyframes roll {
+  0%, 43.33% { transform: translateY(0); }
+  50%, 93.33% { transform: translateY(-1.25em); }
+  100% { transform: translateY(-2.5em); }
 }
-@keyframes flip-second {
-  0%, 45% { opacity: 0; }
-  50%, 95% { opacity: 1; }
-  100% { opacity: 0; }
+.roll-window {
+  display: inline-block;
+  height: 1.25em;
+  line-height: 1.25em;
+  overflow: hidden;
+  vertical-align: bottom;
 }
-.flip-first { animation: flip-first 4s infinite; }
-.flip-second { animation: flip-second 4s infinite; }
-/* Without motion, show only the second layer (the value). */
-@media (prefers-reduced-motion: reduce) {
-  .flip-first { animation: none; opacity: 0; }
-  .flip-second { animation: none; opacity: 1; }
+.roll-track {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  animation: roll 6s ease-in-out infinite;
 }
 
 body {
