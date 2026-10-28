@@ -14,11 +14,11 @@ import {
   timestamp,
   unique,
 } from "drizzle-orm/pg-core";
+import { MEAL_KINDS, MEAL_SLOTS } from "../lib/meals";
 
 export const employeeRole = pgEnum("employee_role", ["admin", "staff"]);
-export const mealSlot = pgEnum("meal_slot", ["lunch", "dinner"]);
-// meat_a / veg_a follow the daily menu; b is the pre-ordered B meal.
-export const mealKind = pgEnum("meal_kind", ["meat_a", "veg_a", "b"]);
+export const mealSlot = pgEnum("meal_slot", MEAL_SLOTS);
+export const mealKind = pgEnum("meal_kind", MEAL_KINDS);
 export const changeSource = pgEnum("change_source", [
   "system",
   "customer_web",
