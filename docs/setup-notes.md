@@ -17,6 +17,7 @@
 
 Newest first, with absolute dates.
 
+- 2026-10-28: Added staff login (`sessions` table, migration `0004_silly_titania`), `src/proxy.ts`, and `/admin/orders` for phone-in changes with reason and history. Seed creates dev logins. The session cookie is `Secure` only when `x-forwarded-proto` is `https`, so login also works over plain HTTP on a LAN; serve over HTTPS in production.
 - 2026-10-28: Added meal kind 無牛 (`no_beef`, migration `0003_eager_mongoose`). Dashboard: lucide icons (`lucide-react`), validated categorical colours for price tiers, status legend top right, per-route and grand-total price × kind tables. Seed now makes 20–25 sites per route across 40 fictional companies.
 - 2026-10-28: Dashboard shows each order line as a meal-kind icon coloured by price tier, and highlights changes per line (computed in `src/lib/board.ts` by replaying `order_changes`) instead of per site.
 - 2026-10-28: Added meal kinds 無豬 (`no_pork`) and 其它 (`other`, free-text `label` on order and default lines), and custom prices outside `price_tiers`. Migration `0002_rapid_prism` was hand-reordered so the `label` columns exist before the keys that use them.

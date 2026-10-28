@@ -27,7 +27,13 @@ Product spec (Traditional Chinese): [docs/spec.md](docs/spec.md)
 - `src/lib/orders.ts`: the only place orders are written; enforces cutoffs for customers, flags staff changes after cutoff, creates each day's default orders lazily (`ensureDailyOrders`)
 - `src/lib/order-events.ts`: order writes `pg_notify` on `order_changes`; the SSE route `/api/board/events` relays them
 - `src/lib/board.ts`: dashboard query behind `/api/board`
-- Pages: `/board` (kitchen TV dashboard), `/order` (simulated customer ordering)
+- `src/lib/order-view.ts`: loads what an order editor needs; validates Server Action input
+- `src/lib/auth.ts`: staff sessions (random cookie token, stored SHA-256 hashed in `sessions`). Every admin page and Server Action calls `requireEmployee()`; `src/proxy.ts` only redirects cookieless `/admin` requests to `/login`
+- `src/lib/password.ts`: scrypt hashes, no framework imports (the seed uses it)
+- `src/components/`: shared UI (`QuantityEditor` used by `/order` and `/admin/orders`, `MenuCard`)
+- Pages: `/board` (kitchen TV dashboard, public), `/order` (simulated customer ordering, public), `/login`, `/admin/orders` (phone-in changes by staff, with change history)
+- Dev logins after `db:seed`: `admin` / `admin1234`, `staff1`…`staff8` / `staff1234`
+- With Cache Components, read cookies/session only inside a `<Suspense>` boundary, and don't call `new Date()` before an uncached read in server components (compare times in SQL instead)
 - `scripts/`: dev scripts run with `tsx`
 - `drizzle/`: generated migrations
 

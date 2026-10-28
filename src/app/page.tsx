@@ -3,6 +3,7 @@ import Link from "next/link";
 const LINKS = [
   { href: "/board", title: "訂餐儀表板", note: "廚房電視用，訂單即時更新" },
   { href: "/order", title: "模擬下單", note: "模擬客戶下單，受截止時間限制" },
+  { href: "/admin/orders", title: "員工後台", note: "電話改單，需登入" },
 ];
 
 export default function Home() {

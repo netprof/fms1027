@@ -15,6 +15,7 @@ import {
   sites,
 } from "@/db/schema";
 import { addDays, isoWeekday, taipeiDate } from "@/lib/meals";
+import { hashPassword } from "@/lib/password";
 
 const DRIVERS = ["阿達", "小晴", "阿玟", "阿燕", "阿勇", "小蔡", "阿新", "阿明"];
 const STEMS = "甲乙丙丁戊己庚辛壬癸";
@@ -66,7 +67,7 @@ const WEEK_MENU = [
 
 async function main() {
   await db.execute(sql`
-    truncate table order_changes, order_lines, orders, menus, holidays,
+    truncate table sessions, order_changes, order_lines, orders, menus, holidays,
       site_default_lines, site_meal_plans, route_driver_overrides, routes,
       sites, companies, price_tiers, employees
     restart identity cascade
@@ -81,11 +82,22 @@ async function main() {
   const staff = await db
     .insert(employees)
     .values([
-      { name: "管理員", phone: "0900-000-000", role: "admin" as const },
-      ...DRIVERS.map((name, i) => ({
-        name,
-        phone: `0912-345-${String(601 + i)}`,
-      })),
+      // Dev logins: admin / admin1234, staff1…staff8 / staff1234.
+      {
+        name: "管理員",
+        phone: "0900-000-000",
+        role: "admin" as const,
+        username: "admin",
+        passwordHash: await hashPassword("admin1234"),
+      },
+      ...(await Promise.all(
+        DRIVERS.map(async (name, i) => ({
+          name,
+          phone: `0912-345-${String(601 + i)}`,
+          username: `staff${i + 1}`,
+          passwordHash: await hashPassword("staff1234"),
+        })),
+      )),
     ])
     .returning();
   const drivers = staff.slice(1);

@@ -48,6 +48,19 @@ export const employees = pgTable("employees", {
   ...timestamps,
 });
 
+// Back-office login sessions. id is the SHA-256 of the cookie token, so a
+// leaked table can't be replayed as cookies.
+export const sessions = pgTable("sessions", {
+  id: text("id").primaryKey(),
+  employeeId: integer("employee_id")
+    .notNull()
+    .references(() => employees.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 export const companies = pgTable("companies", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
