@@ -14,10 +14,13 @@ import {
   siteMealPlans,
   sites,
 } from "@/db/schema";
+import { classifyChange, lineKey, type ChangeKind } from "./changes";
 import type { MealSlot } from "./meals";
 import { isServiceDay, normalizeLines, type OrderLine } from "./orders";
 
-export type ChangeKind = "new" | "modified" | "cancelled";
+export type { ChangeKind };
+
+const RECENT_LIMIT = 30;
 
 export type BoardLine = OrderLine & {
   // Latest change to this line by a customer or staff, not the daily default.
@@ -44,6 +47,19 @@ export type BoardRoute = {
   sites: BoardSite[];
 };
 
+// One customer or staff change, newest first on the board.
+export type RecentChange = {
+  id: number;
+  at: string;
+  siteLabel: string;
+  source: "customer_web" | "line" | "staff";
+  employeeName: string | null;
+  afterCutoff: boolean;
+  kind: ChangeKind;
+  before: OrderLine[];
+  after: OrderLine[];
+};
+
 export type Board = {
   date: string;
   slot: MealSlot;
@@ -51,12 +67,12 @@ export type Board = {
   // Highest first; the dashboard colours prices by this order.
   priceTiers: number[];
   routes: BoardRoute[];
+  recentChanges: RecentChange[];
   serverNow: string;
 };
 
 type Mark = Omit<BoardLine, keyof OrderLine> & { previous: OrderLine };
 
-const lineKey = (l: OrderLine) => `${l.kind}:${l.unitPrice}:${l.label ?? ""}`;
 const snapshot = (value: unknown) =>
   normalizeLines((value as { lines?: OrderLine[] } | null)?.lines ?? []);
 
@@ -151,6 +167,33 @@ export async function getBoard(date: string, slot: MealSlot): Promise<Board> {
   const peopleById = new Map(people.map((p) => [p.id, p]));
   const overrideByRoute = new Map(overrides.map((o) => [o.routeId, o]));
 
+  const siteByOrder = new Map(
+    orderRows.map((o) => [o.id, plans.find((p) => p.siteId === o.siteId)]),
+  );
+  const recentChanges = (): RecentChange[] =>
+    // changeRows is ordered per order; sort the whole day newest first.
+    [...changeRows]
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b.id - a.id)
+      .slice(0, RECENT_LIMIT)
+      .map((c) => {
+        const plan = siteByOrder.get(c.orderId);
+        const before = snapshot(c.before);
+        const after = snapshot(c.after);
+        return {
+          id: c.id,
+          at: c.createdAt.toISOString(),
+          siteLabel: plan ? `${plan.companyName}${plan.name}` : "",
+          source: c.source as RecentChange["source"],
+          employeeName: c.employeeId
+            ? (peopleById.get(c.employeeId)?.name ?? null)
+            : null,
+          afterCutoff: c.afterCutoff,
+          kind: classifyChange(before, after),
+          before,
+          after,
+        };
+      });
+
   const toSite = (plan: (typeof plans)[number]): BoardSite => {
     const orderId = orderBySite.get(plan.siteId);
     const marks = markLines(changeRows.filter((c) => c.orderId === orderId));
@@ -193,6 +236,7 @@ export async function getBoard(date: string, slot: MealSlot): Promise<Board> {
     slot,
     serviceDay: await isServiceDay(date),
     priceTiers: tiers.map((t) => t.price),
+    recentChanges: recentChanges(),
     serverNow: new Date().toISOString(),
     routes: routeRows.map((route) => {
       const override = overrideByRoute.get(route.id);

@@ -8,8 +8,8 @@ import {
   linesFromEditor,
   type EditorState,
 } from "@/components/quantity-editor";
-import { MEAL_KINDS, SLOT_LABEL, lineLabel, type MealSlot } from "@/lib/meals";
-import type { OrderLine } from "@/lib/orders";
+import { describeChange } from "@/lib/changes";
+import { MEAL_KINDS, SLOT_LABEL, type MealSlot } from "@/lib/meals";
 import {
   adjustOrder,
   loadStaffOrder,
@@ -29,25 +29,6 @@ const SOURCE_LABEL: Record<HistoryEntry["source"], string> = {
   line: "LINE",
   staff: "後台",
 };
-
-const lineKey = (l: OrderLine) => `${l.kind}:${l.unitPrice}:${l.label ?? ""}`;
-
-// "葷70 12→15、無豬70 0→2"
-function describe(entry: HistoryEntry): string {
-  const before = new Map(entry.before.map((l) => [lineKey(l), l]));
-  const after = new Map(entry.after.map((l) => [lineKey(l), l]));
-  const parts: string[] = [];
-  for (const key of new Set([...before.keys(), ...after.keys()])) {
-    const b = before.get(key);
-    const a = after.get(key);
-    if (b?.quantity === a?.quantity) continue;
-    const line = (a ?? b)!;
-    parts.push(
-      `${lineLabel(line)}${line.unitPrice} ${b?.quantity ?? 0}→${a?.quantity ?? 0}`,
-    );
-  }
-  return parts.join("、") || "—";
-}
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleString("zh-TW", {
@@ -290,7 +271,7 @@ export function StaffOrderEditor({
                   </span>
                   <span className="tabular-nums">{formatTime(h.at)}</span>
                 </div>
-                <div className="mt-1">{describe(h)}</div>
+                <div className="mt-1">{describeChange(h.before, h.after)}</div>
                 {h.reason && (
                   <div className="mt-0.5 text-xs text-zinc-600">原因：{h.reason}</div>
                 )}

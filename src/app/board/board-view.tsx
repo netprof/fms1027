@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { Board, BoardLine, BoardSite } from "@/lib/board";
+import type { Board, BoardLine, BoardSite, RecentChange } from "@/lib/board";
+import { describeChange, lineKey } from "@/lib/changes";
 import {
   KIND_LABEL,
   MEAL_KINDS,
@@ -22,11 +23,26 @@ type Selection = { date: string; slot: MealSlot } | null; // null = follow now
 // Change states are tints of the status palette behind one line's icon and
 // quantity; cancelled is also struck through so it never relies on colour.
 type Status = "new" | "modified" | "cancelled" | "staff";
-const STATUS: Record<Status, { label: string; tint: string; className?: string }> = {
-  new: { label: "新下單", tint: "rgba(12,163,12,0.22)" },
-  modified: { label: "修改", tint: "rgba(250,178,25,0.38)" },
-  cancelled: { label: "取消", tint: "rgba(208,59,59,0.22)", className: "line-through" },
-  staff: { label: "截止後後台調整", tint: "rgba(42,120,214,0.22)" },
+// solid marks the recent-changes list.
+const STATUS: Record<
+  Status,
+  { label: string; tint: string; solid: string; className?: string }
+> = {
+  new: { label: "新下單", tint: "rgba(12,163,12,0.22)", solid: "#0ca30c" },
+  modified: { label: "修改", tint: "rgba(250,178,25,0.38)", solid: "#fab219" },
+  cancelled: {
+    label: "取消",
+    tint: "rgba(208,59,59,0.22)",
+    solid: "#d03b3b",
+    className: "line-through",
+  },
+  staff: { label: "截止後後台調整", tint: "rgba(42,120,214,0.22)", solid: "#2a78d6" },
+};
+
+const SOURCE_LABEL: Record<RecentChange["source"], string> = {
+  customer_web: "客戶",
+  line: "LINE",
+  staff: "後台",
 };
 
 // Price tiers take categorical slots in fixed order, highest price first.
@@ -59,7 +75,6 @@ function lineStatus(line: BoardLine, now: number): Status | null {
 }
 
 const sum = (lines: OrderLine[]) => lines.reduce((n, l) => n + l.quantity, 0);
-const lineKey = (l: OrderLine) => `${l.kind}:${l.unitPrice}:${l.label ?? ""}`;
 
 function LineChip({
   line,
@@ -228,6 +243,51 @@ function QuantityTable({
         </tr>
       </tbody>
     </table>
+  );
+}
+
+// Fills the space beside the total table; the list scrolls inside it.
+function RecentChanges({ changes }: { changes: RecentChange[] }) {
+  return (
+    <section className="relative min-h-40 min-w-0 flex-1">
+      <div className="absolute inset-0 flex flex-col">
+        <h2 className="mb-1 text-sm text-zinc-500">近期異動</h2>
+        {changes.length === 0 ? (
+          <p className="text-sm text-zinc-400">尚無異動</p>
+        ) : (
+          <ol className="flex-1 overflow-y-auto text-sm">
+            {changes.map((c) => {
+              const status = STATUS[c.afterCutoff ? "staff" : c.kind];
+              return (
+                <li
+                  key={c.id}
+                  title={status.label}
+                  className="flex items-baseline gap-2 border-b border-l-4 border-b-zinc-100 py-0.5 pl-2"
+                  style={{ borderLeftColor: status.solid }}
+                >
+                  <span className="shrink-0 tabular-nums text-zinc-500">
+                    {new Date(c.at).toLocaleTimeString("zh-TW", {
+                      timeZone: "Asia/Taipei",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      hour12: false,
+                    })}
+                  </span>
+                  <span className="shrink-0 font-medium">{c.siteLabel}</span>
+                  <span className="min-w-0 flex-1 truncate">
+                    {describeChange(c.before, c.after)}
+                  </span>
+                  <span className="shrink-0 text-xs text-zinc-500">
+                    {SOURCE_LABEL[c.source]}
+                    {c.employeeName && `・${c.employeeName}`}
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -406,10 +466,11 @@ export function BoardView() {
               </section>
             ))}
           </main>
-          <footer className="bg-white px-4 py-2 shadow-inner">
-            <div className="max-w-5xl">
+          <footer className="flex flex-col gap-6 bg-white px-4 py-2 shadow-inner lg:flex-row">
+            <div className="w-full max-w-5xl shrink-0">
               <QuantityTable lines={allLines} prices={prices} full />
             </div>
+            <RecentChanges changes={board.recentChanges} />
           </footer>
         </>
       )}
