@@ -55,13 +55,14 @@ Setup steps and the reasons behind each setting: `docs/setup-notes.md` → Azure
 - `develop` is the deploy branch; `main` takes it by PR. A push runs `.github/workflows/azure.yml`:
   1. Build a standalone server (`BUILD_STANDALONE=1` → `output: "standalone"`).
   2. `db:migrate` with the GitHub secret `DATABASE_URL`.
-  3. Deploy to App Service `fms1027-demo` (resource group `rg-fms-demo`) into a wiped wwwroot.
+  3. Deploy to App Service `fms1027-jp` (resource group `rg-fms-demo`, Japan East) into a wiped wwwroot.
 - Migrations run while the old code still serves, so add columns nullable or with a default, and drop or rename only in a later deploy.
-- Database: server `fms1027-db-xxxx`, database `fms_demo`. It accepts only connections from inside Azure: the app, GitHub Actions, Cloud Shell. The company network blocks outbound 5432, so reach it through a workflow or Cloud Shell, not from this machine.
+- Region: Japan East. Not East Asia (Hong Kong): the Anthropic API answers requests from Hong Kong with 403 `forbidden` "Request not allowed", which broke LINE orders.
+- Database: server `fms1027-db-jp`, database `fms_demo`. It accepts only connections from inside Azure: the app, GitHub Actions, Cloud Shell. The company network blocks outbound 5432, so reach it through a workflow or Cloud Shell, not from this machine.
 - `.env` may point `DATABASE_URL` at Azure. For local runs and tests, set `DATABASE_URL=postgres://fms:fms@localhost:5432/fms` explicitly.
 - The public site gets logins only from `npm run admin:create`. Demo data comes from `.github/workflows/seed-demo.yml`, which is manual, runs `db:seed` with `SEED_KEEP_LOGINS=1` and keeps the logins.
 - Runtime config lives in the web app's settings, not the repo: startup command `HOSTNAME=0.0.0.0 node server.js`, Always On, health check `/api/health`, and the env vars from `.env.example` except `TRUST_SYSTEM_CA`.
-- Azure CLI: `C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin\az.cmd` (not on PATH). `az webapp log download -g rg-fms-demo -n fms1027-demo` fetches the logs. Container output is in `LogFiles/StartupLogs/`.
+- Azure CLI: `C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin\az.cmd` (not on PATH). `az webapp log download -g rg-fms-demo -n fms1027-jp` fetches the logs. Container output is in `LogFiles/StartupLogs/`.
 
 ## Conventions
 

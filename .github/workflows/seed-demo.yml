@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: "Wipes customers, routes, orders and menus. Type fms1027-demo to confirm"
+        description: "Wipes customers, routes, orders and menus. Type fms1027-jp to confirm"
         required: true
 
 permissions:
@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   seed:
-    if: inputs.confirm == 'fms1027-demo'
+    if: inputs.confirm == 'fms1027-jp'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

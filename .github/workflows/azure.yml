@@ -1,5 +1,5 @@
 # Builds on every push to develop and deploys to Azure App Service (Linux),
-# web app fms1027-demo.
+# web app fms1027-jp (Japan East).
 # One-time setup (OIDC login, secrets, app settings): docs/setup-notes.md → "Azure".
 # The build needs no database or secrets; the migrate step uses the
 # DATABASE_URL secret, the app reads its own from the web app's settings.
@@ -60,7 +60,7 @@ jobs:
 
       - uses: azure/webapps-deploy@v3
         with:
-          app-name: fms1027-demo
+          app-name: fms1027-jp
           package: app.zip
           # Wipe wwwroot first. Leftovers from another deploy (an Oryx
           # oryx-manifest.toml and node_modules.tar.zst) make App Service swap

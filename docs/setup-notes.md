@@ -18,7 +18,11 @@ With `LINE_DRY_RUN=1` nothing is sent to LINE; replies and pushes are logged as 
 
 ## Azure
 
-The app runs on Azure App Service (Linux, Node 22). The database is Azure Database for PostgreSQL flexible server 17. Serverless hosting (Static Web Apps, Functions) doesn't fit: the dashboard keeps SSE connections and a LISTEN connection open, and the scheduler runs inside the server. Every push to `develop` builds and deploys through `.github/workflows/azure.yml` to the web app `fms1027-demo` (resource group `rg-fms-demo`, East Asia; database server `fms1027-db-xxxx`, database `fms_demo`). It was first set up through the portal's Deployment Center, which created the OIDC login and the `AZUREAPPSERVICE_*` secrets. The workflow it generated shipped the whole repo, lost `node_modules/.bin` on the way and failed with `next: not found`, so it was replaced.
+The app runs on Azure App Service (Linux, Node 22). The database is Azure Database for PostgreSQL flexible server 17. Serverless hosting (Static Web Apps, Functions) doesn't fit: the dashboard keeps SSE connections and a LISTEN connection open, and the scheduler runs inside the server. Every push to `develop` builds and deploys through `.github/workflows/azure.yml` to the web app `fms1027-jp` (resource group `rg-fms-demo`, Japan East; plan `fms-plan-jp`; database server `fms1027-db-jp`, database `fms_demo`).
+
+Pick a region the Anthropic API serves. The app first ran in East Asia (Hong Kong), where every Claude call got 403 `forbidden` "Request not allowed" (no request id, Cloudflare edge `HKG`), so LINE orders answered 「系統忙碌中」. It moved to Japan East on 2026-10-29.
+
+The first app, `fms1027-demo`, was set up through the portal's Deployment Center, which created the OIDC login (managed identity `fms1027-demo-id-9d31`, federated with `develop`) and the `AZUREAPPSERVICE_*` secrets. The workflow still logs in with that identity; it needs Website Contributor on whichever web app it deploys to. The workflow it generated shipped the whole repo, lost `node_modules/.bin` on the way and failed with `next: not found`, so it was replaced.
 
 The build sets `BUILD_STANDALONE=1`, which gives `output: "standalone"`. `.next/standalone` is a self-contained `server.js` with only the traced `node_modules`. The build needs no database or secrets.
 
@@ -26,7 +30,7 @@ One-time setup (`<app>` is the web app name, `<db>` the database server):
 
 1. Create the resources:
    ```bash
-   az group create -n fms-rg -l eastasia
+   az group create -n fms-rg -l japaneast
    az postgres flexible-server create -g fms-rg -n <db> --version 17 --tier Burstable \
      --sku-name Standard_B1ms --storage-size 32 --admin-user fmsadmin --admin-password '<password>' \
      --public-access 0.0.0.0
@@ -49,7 +53,7 @@ One-time setup (`<app>` is the web app name, `<db>` the database server):
    - `HOSTNAME=0.0.0.0` makes `server.js` listen on all interfaces. The container's own `HOSTNAME` would be used otherwise. App Service sets `PORT` itself.
    - Leave out `TRUST_SYSTEM_CA` (company network only) and `SCM_DO_BUILD_DURING_DEPLOYMENT` (the package is already built).
    - `sslmode=verify-full` checks the server certificate. `require` does the same in `pg` 8 but prints a warning.
-3. Let GitHub Actions log in through OIDC, with no stored password. Deployment Center already did this for `fms1027-demo`; these steps are for a new app, and the workflow's secret names and `app-name` must then be changed to match:
+3. Let GitHub Actions log in through OIDC, with no stored password. The existing identity covers a new web app in the same subscription once it has the role there (`az role assignment create --assignee-object-id <identity principalId> --assignee-principal-type ServicePrincipal --role "Website Contributor" --scope <web app id>`); these steps are for a fresh setup, and the workflow's secret names and `app-name` must then be changed to match:
    ```bash
    APP_ID=$(az ad app create --display-name fms-github-deploy --query appId -o tsv)
    az ad sp create --id $APP_ID
@@ -61,7 +65,7 @@ One-time setup (`<app>` is the web app name, `<db>` the database server):
    gh secret set AZURE_SUBSCRIPTION_ID --body $(az account show --query id -o tsv)
    gh variable set AZURE_WEBAPP_NAME --body <app>
    ```
-   The deploy also needs the database URL as a secret, for its migrate step (also for `fms1027-demo`):
+   The deploy also needs the database URL as a secret, for its migrate step:
    ```bash
    az webapp config appsettings list -g fms-rg -n <app> --query "[?name=='DATABASE_URL'].value" -o tsv | gh secret set DATABASE_URL
    ```
@@ -76,7 +80,7 @@ One-time setup (`<app>` is the web app name, `<db>` the database server):
 5. Push to `develop`, or run the workflow by hand from the Actions tab. Then check `https://<app>.azurewebsites.net/api/health`.
 6. In the LINE Developers console, set the webhook URL to `https://<app>.azurewebsites.net/api/line/webhook` and press Verify.
 
-Demo data: in the Actions tab, run "Seed demo data (Azure)" and type `fms1027-demo` to confirm. It runs `db:seed` with `SEED_KEEP_LOGINS=1`: customers, routes, orders, menus and LINE contacts are replaced, while accounts with a login and their sessions are kept. The 8 sample drivers get no login. Don't use it once real data is in the database.
+Demo data: in the Actions tab, run "Seed demo data (Azure)" and type `fms1027-jp` to confirm. It runs `db:seed` with `SEED_KEEP_LOGINS=1`: customers, routes, orders, menus and LINE contacts are replaced, while accounts with a login and their sessions are kept. The 8 sample drivers get no login. Don't use it once real data is in the database.
 
 The workflow runs `npm run db:migrate` (secret `DATABASE_URL`) after the build and before the deploy. GitHub-hosted runners run in Azure, so the `AllowAzureServices` rule lets them in. The old code keeps running until the deploy finishes, so a migration has to work with it too. Add columns as nullable or with a default, and drop or rename them only in a later deploy. If the migration fails, nothing is deployed.
 
@@ -88,6 +92,7 @@ The workflow runs `npm run db:migrate` (secret `DATABASE_URL`) after the build a
 
 ## Changelog
 
+- 2026-10-29: Moved Azure from East Asia to Japan East (web app `fms1027-jp`, plan `fms-plan-jp`, database server `fms1027-db-jp`): the Anthropic API refuses requests from Hong Kong with 403, so LINE orders failed with 「系統忙碌中」. The workflows deploy to and confirm with `fms1027-jp`.
 - 2026-10-29: CLAUDE.md gains a Deployment (Azure) section: deploy branch, migration rule, database reachability, local `DATABASE_URL`, Azure CLI path and logs.
 - 2026-10-29: The Azure workflow runs `db:migrate` before each deploy, using the new GitHub secret `DATABASE_URL`.
 - 2026-10-29: `db:seed` takes `SEED_KEEP_LOGINS=1`, and the manual workflow `seed-demo.yml` loads demo data into the Azure database with it.
