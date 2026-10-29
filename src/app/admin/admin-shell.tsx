@@ -84,7 +84,7 @@ export function AdminShell({
         </button>
         <Link href="/admin/orders" className="flex items-center gap-2 text-lg font-medium tracking-wide">
           <UtensilsCrossed size={22} aria-hidden />
-          團膳管理系統
+          永發便當團膳管理系統
         </Link>
         <div className="ml-auto text-sm">{user}</div>
       </header>

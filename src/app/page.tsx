@@ -9,7 +9,7 @@ const LINKS = [
 export default function Home() {
   return (
     <main className="mx-auto w-full max-w-2xl p-8">
-      <h1 className="mb-6 text-2xl font-semibold">團膳管理系統</h1>
+      <h1 className="mb-6 text-2xl font-semibold">永發便當團膳管理系統</h1>
       <ul className="grid gap-3 sm:grid-cols-2">
         {LINKS.map((link) => (
           <li key={link.href}>

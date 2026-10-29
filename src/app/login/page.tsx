@@ -15,7 +15,7 @@ export default function LoginPage() {
         <div className="flex items-center gap-2 bg-primary px-6 py-5 text-white">
           <UtensilsCrossed size={24} aria-hidden />
           <div>
-            <div className="text-lg font-medium">團膳管理系統</div>
+            <div className="text-lg font-medium">永發便當團膳管理系統</div>
             <div className="text-xs text-white/70">員工登入</div>
           </div>
         </div>
