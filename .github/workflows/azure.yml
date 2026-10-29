@@ -62,3 +62,7 @@ jobs:
         with:
           app-name: fms1027-demo
           package: app.zip
+          # Wipe wwwroot first. Leftovers from another deploy (an Oryx
+          # oryx-manifest.toml and node_modules.tar.zst) make App Service swap
+          # in their node_modules, and old .next files break Server Actions.
+          clean: true

@@ -87,6 +87,7 @@ The workflow runs `npm run db:migrate` (secret `DATABASE_URL`) after the build a
 ## Changelog
 
 - 2026-10-29: The Azure workflow runs `db:migrate` before each deploy, using the new GitHub secret `DATABASE_URL`.
+- 2026-10-29: The Azure deploy now wipes wwwroot first (`clean: true`). Files left by the Deployment Center deploy (`oryx-manifest.toml`, `node_modules.tar.zst`) made the container swap in their `node_modules`, and login failed with "Server Action not found".
 - 2026-10-28: Azure deployment: `.github/workflows/azure.yml` builds a standalone server (`BUILD_STANDALONE=1`) and deploys it to App Service (`fms1027-demo`) on every push to `develop`. It replaces the Deployment Center workflow `develop_fms1027-demo.yml`. Added `npm run admin:create` for a production database's first admin. The login rate limit now drops the port Azure appends to `x-forwarded-for`. `/api/health` and `/api/board/events` call `connection()`, so the build no longer runs them: it used to need a database, and baked in a fixed health result.
 
 Newest first, with absolute dates.
