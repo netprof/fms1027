@@ -76,6 +76,8 @@ One-time setup (`<app>` is the web app name, `<db>` the database server):
 5. Push to `develop`, or run the workflow by hand from the Actions tab. Then check `https://<app>.azurewebsites.net/api/health`.
 6. In the LINE Developers console, set the webhook URL to `https://<app>.azurewebsites.net/api/line/webhook` and press Verify.
 
+Demo data: in the Actions tab, run "Seed demo data (Azure)" and type `fms1027-demo` to confirm. It runs `db:seed` with `SEED_KEEP_LOGINS=1`: customers, routes, orders, menus and LINE contacts are replaced, while accounts with a login and their sessions are kept. The 8 sample drivers get no login. Don't use it once real data is in the database.
+
 The workflow runs `npm run db:migrate` (secret `DATABASE_URL`) after the build and before the deploy. GitHub-hosted runners run in Azure, so the `AllowAzureServices` rule lets them in. The old code keeps running until the deploy finishes, so a migration has to work with it too. Add columns as nullable or with a default, and drop or rename them only in a later deploy. If the migration fails, nothing is deployed.
 
 ## One-time context
@@ -87,6 +89,7 @@ The workflow runs `npm run db:migrate` (secret `DATABASE_URL`) after the build a
 ## Changelog
 
 - 2026-10-29: The Azure workflow runs `db:migrate` before each deploy, using the new GitHub secret `DATABASE_URL`.
+- 2026-10-29: `db:seed` takes `SEED_KEEP_LOGINS=1`, and the manual workflow `seed-demo.yml` loads demo data into the Azure database with it.
 - 2026-10-29: The Azure deploy now wipes wwwroot first (`clean: true`). Files left by the Deployment Center deploy (`oryx-manifest.toml`, `node_modules.tar.zst`) made the container swap in their `node_modules`, and login failed with "Server Action not found".
 - 2026-10-28: Azure deployment: `.github/workflows/azure.yml` builds a standalone server (`BUILD_STANDALONE=1`) and deploys it to App Service (`fms1027-demo`) on every push to `develop`. It replaces the Deployment Center workflow `develop_fms1027-demo.yml`. Added `npm run admin:create` for a production database's first admin. The login rate limit now drops the port Azure appends to `x-forwarded-for`. `/api/health` and `/api/board/events` call `connection()`, so the build no longer runs them: it used to need a database, and baked in a fixed health result.
 

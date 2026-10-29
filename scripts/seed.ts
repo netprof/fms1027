@@ -1,6 +1,9 @@
 // Sample data modelled on the delivery whiteboard (src/pic/01.png) and the
 // weekly menu (src/pic/02.png). Names and phone numbers are made up.
 // WARNING: empties every table first. Development only: `npm run db:seed`.
+// SEED_KEEP_LOGINS=1 (demo data on a public server, e.g. the Azure seed
+// workflow) keeps employees that have a login, plus their sessions, and
+// creates the drivers without logins, so no dev passwords are created.
 import "dotenv/config";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
@@ -65,13 +68,25 @@ const WEEK_MENU = [
   },
 ];
 
+const KEEP_LOGINS = process.env.SEED_KEEP_LOGINS === "1";
+
 async function main() {
-  await db.execute(sql`
-    truncate table sessions, login_failures, line_drafts, line_contacts, order_changes, order_lines, orders, menus, holidays,
-      site_default_lines, site_meal_plans, route_driver_overrides, routes,
-      sites, companies, price_tiers, employees
-    restart identity cascade
-  `);
+  if (KEEP_LOGINS) {
+    await db.execute(sql`
+      truncate table line_drafts, line_contacts, order_changes, order_lines, orders, menus, holidays,
+        site_default_lines, site_meal_plans, route_driver_overrides, routes,
+        sites, companies, price_tiers
+      restart identity cascade
+    `);
+    await db.execute(sql`delete from employees where username is null`);
+  } else {
+    await db.execute(sql`
+      truncate table sessions, login_failures, line_drafts, line_contacts, order_changes, order_lines, orders, menus, holidays,
+        site_default_lines, site_meal_plans, route_driver_overrides, routes,
+        sites, companies, price_tiers, employees
+      restart identity cascade
+    `);
+  }
 
   await db.insert(priceTiers).values([
     { price: 70, sideDishCount: 6 },
@@ -79,28 +94,32 @@ async function main() {
     { price: 50, sideDishCount: 4 },
   ]);
 
-  const staff = await db
+  if (!KEEP_LOGINS) {
+    // Dev login admin / admin1234.
+    await db.insert(employees).values({
+      name: "管理員",
+      phone: "0900-000-000",
+      role: "admin",
+      username: "admin",
+      passwordHash: await hashPassword("admin1234"),
+    });
+  }
+  const drivers = await db
     .insert(employees)
-    .values([
-      // Dev logins: admin / admin1234, staff1…staff8 / staff1234.
-      {
-        name: "管理員",
-        phone: "0900-000-000",
-        role: "admin" as const,
-        username: "admin",
-        passwordHash: await hashPassword("admin1234"),
-      },
-      ...(await Promise.all(
+    .values(
+      await Promise.all(
         DRIVERS.map(async (name, i) => ({
           name,
           phone: `0912-345-${String(601 + i)}`,
-          username: `staff${i + 1}`,
-          passwordHash: await hashPassword("staff1234"),
+          // Dev logins staff1…staff8 / staff1234, unless KEEP_LOGINS.
+          ...(!KEEP_LOGINS && {
+            username: `staff${i + 1}`,
+            passwordHash: await hashPassword("staff1234"),
+          }),
         })),
-      )),
-    ])
+      ),
+    )
     .returning();
-  const drivers = staff.slice(1);
 
   const lunchRoutes = await db
     .insert(routes)

@@ -17,7 +17,7 @@ Product spec (Traditional Chinese): [docs/spec.md](docs/spec.md)
 - `npm run db:push`: sync the schema straight to the DB (dev only)
 - `npm run db:studio`: Drizzle Studio
 - `npm run orders:generate -- [from] [to]`: create missing standing orders for a date range (default today), e.g. after downtime
-- `npm run db:seed`: wipe every table and load sample data (`scripts/seed.ts`, dev only)
+- `npm run db:seed`: wipe every table and load sample data (`scripts/seed.ts`, dev only). With `SEED_KEEP_LOGINS=1` it keeps employees that have a login and creates drivers without one (no dev passwords); the Azure demo uses this through `.github/workflows/seed-demo.yml` (run by hand)
 - `npm run admin:create -- <username> <姓名> [電話]`: create (or reset) an admin login without touching other data; prints a random password unless `ADMIN_PASSWORD` is set. For a fresh production database
 
 ## Layout
