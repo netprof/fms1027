@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640" viewBox="0 0 640 640">
+  <!-- LINE crops the avatar to a circle: keep everything within r≈280 of the centre. -->
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="75%">
+      <stop offset="0" stop-color="#D9502F"/>
+      <stop offset="1" stop-color="#A8301F"/>
+    </radialGradient>
+  </defs>
+  <rect width="640" height="640" fill="url(#bg)"/>
+
+  <!-- chopsticks -->
+  <g stroke="#F2C14E" stroke-linecap="round">
+    <line x1="196" y1="124" x2="452" y2="104" stroke-width="12"/>
+    <line x1="196" y1="146" x2="452" y2="130" stroke-width="12"/>
+  </g>
+
+  <!-- bento box, seen from above -->
+  <rect x="176" y="168" width="288" height="196" rx="30" fill="#FFFFFF"/>
+  <rect x="196" y="188" width="140" height="156" rx="16" fill="#FBEBDD"/>
+  <rect x="352" y="188" width="92" height="70" rx="14" fill="#FBEBDD"/>
+  <rect x="352" y="274" width="92" height="70" rx="14" fill="#FBEBDD"/>
+  <!-- a few dishes -->
+  <circle cx="266" cy="266" r="30" fill="#E9A23B"/>
+  <path d="M370 236c8-26 48-30 56 0z" fill="#6DA34D"/>
+  <rect x="368" y="296" width="60" height="26" rx="13" fill="#C8452C"/>
+
+  <text x="320" y="468" text-anchor="middle" fill="#FFFFFF"
+        font-family="Microsoft JhengHei, Noto Sans TC, sans-serif" font-weight="700"
+        font-size="92" letter-spacing="8">永發便當</text>
+  <text x="320" y="526" text-anchor="middle" fill="#FBEBDD" fill-opacity="0.9"
+        font-family="Microsoft JhengHei, Noto Sans TC, sans-serif" font-weight="400"
+        font-size="32" letter-spacing="10">團膳・LINE 訂餐</text>
+</svg>
