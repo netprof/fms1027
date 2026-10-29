@@ -17,7 +17,7 @@ Product spec (Traditional Chinese): [docs/spec.md](docs/spec.md)
 - `npm run db:push`: sync the schema straight to the DB (dev only)
 - `npm run db:studio`: Drizzle Studio
 - `npm run orders:generate -- [from] [to]`: create missing standing orders for a date range (default today), e.g. after downtime
-- `npm run db:seed`: wipe every table and load sample data (`scripts/seed.ts`, dev only). With `SEED_KEEP_LOGINS=1` it keeps employees that have a login and creates drivers without one (no dev passwords); the Azure demo uses this through `.github/workflows/seed-demo.yml` (run by hand)
+- `npm run db:seed`: wipe every table and load sample data (`scripts/seed.ts`, dev only). With `SEED_KEEP_LOGINS=1` it keeps employees that have a login and creates drivers without one (no dev passwords)
 - `npm run admin:create -- <username> <姓名> [電話]`: create (or reset) an admin login without touching other data; prints a random password unless `ADMIN_PASSWORD` is set. For a fresh production database
 
 ## Layout
@@ -43,10 +43,25 @@ Product spec (Traditional Chinese): [docs/spec.md](docs/spec.md)
 - Back-office look follows PrimeNG Ultima (indigo): `src/app/admin/admin-shell.tsx` (top bar, sidebar, breadcrumb), theme colours `primary`/`ground`/`ink` in `globals.css`, Roboto from `src/app/fonts.ts`. The kitchen board keeps its own full-screen style
 - Dev logins after `db:seed`: `admin` / `admin1234`, `staff1`…`staff8` / `staff1234`
 - With Cache Components, read cookies/session only inside a `<Suspense>` boundary, and don't call `new Date()` before an uncached read in server components (compare times in SQL instead). `usePathname()` in a client component must also sit inside a `<Suspense>` boundary (dynamic routes fail the build otherwise)
+- The build runs without a database. A GET route handler that doesn't read the request is prerendered at build time, so start it with `await connection()` (see `/api/health`)
 - `"use server"` files may only export async functions; put shared constants elsewhere (e.g. `src/lib/meals.ts`)
 - `scripts/`: dev scripts run with `tsx`
-- `.github/workflows/azure.yml`: on push to `develop`, builds with `BUILD_STANDALONE=1` (`output: "standalone"` in `next.config.ts`) and runs `db:migrate` against the Azure database (GitHub secret `DATABASE_URL`, before the deploy, so migrations must also work with the code still running), then deploys to Azure App Service `fms1027-demo`; setup in `docs/setup-notes.md` → Azure. The build must not need a database: a GET route handler that doesn't read the request is prerendered at build time unless it calls `await connection()` first
 - `drizzle/`: generated migrations
+
+## Deployment (Azure)
+
+Setup steps and the reasons behind each setting: `docs/setup-notes.md` → Azure.
+
+- `develop` is the deploy branch; `main` takes it by PR. A push runs `.github/workflows/azure.yml`:
+  1. Build a standalone server (`BUILD_STANDALONE=1` → `output: "standalone"`).
+  2. `db:migrate` with the GitHub secret `DATABASE_URL`.
+  3. Deploy to App Service `fms1027-demo` (resource group `rg-fms-demo`) into a wiped wwwroot.
+- Migrations run while the old code still serves, so add columns nullable or with a default, and drop or rename only in a later deploy.
+- Database: server `fms1027-db-xxxx`, database `fms_demo`. It accepts only connections from inside Azure: the app, GitHub Actions, Cloud Shell. The company network blocks outbound 5432, so reach it through a workflow or Cloud Shell, not from this machine.
+- `.env` may point `DATABASE_URL` at Azure. For local runs and tests, set `DATABASE_URL=postgres://fms:fms@localhost:5432/fms` explicitly.
+- The public site gets logins only from `npm run admin:create`. Demo data comes from `.github/workflows/seed-demo.yml`, which is manual, runs `db:seed` with `SEED_KEEP_LOGINS=1` and keeps the logins.
+- Runtime config lives in the web app's settings, not the repo: startup command `HOSTNAME=0.0.0.0 node server.js`, Always On, health check `/api/health`, and the env vars from `.env.example` except `TRUST_SYSTEM_CA`.
+- Azure CLI: `C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin\az.cmd` (not on PATH). `az webapp log download -g rg-fms-demo -n fms1027-demo` fetches the logs. Container output is in `LogFiles/StartupLogs/`.
 
 ## Conventions
 

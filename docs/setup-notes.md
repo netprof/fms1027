@@ -88,6 +88,7 @@ The workflow runs `npm run db:migrate` (secret `DATABASE_URL`) after the build a
 
 ## Changelog
 
+- 2026-10-29: CLAUDE.md gains a Deployment (Azure) section: deploy branch, migration rule, database reachability, local `DATABASE_URL`, Azure CLI path and logs.
 - 2026-10-29: The Azure workflow runs `db:migrate` before each deploy, using the new GitHub secret `DATABASE_URL`.
 - 2026-10-29: `db:seed` takes `SEED_KEEP_LOGINS=1`, and the manual workflow `seed-demo.yml` loads demo data into the Azure database with it.
 - 2026-10-29: The Azure deploy now wipes wwwroot first (`clean: true`). Files left by the Deployment Center deploy (`oryx-manifest.toml`, `node_modules.tar.zst`) made the container swap in their `node_modules`, and login failed with "Server Action not found".
