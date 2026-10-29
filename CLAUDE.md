@@ -32,7 +32,7 @@ Product spec (Traditional Chinese): [docs/spec.md](docs/spec.md)
 - `src/lib/order-events.ts`: order writes `pg_notify` on `order_changes`; the SSE route `/api/board/events` relays them
 - `src/lib/board.ts`: dashboard query behind `/api/board`
 - `src/lib/reports.ts`: Excel reports (`exceljs`). `/api/reports/daily?date=&slot=` (any employee) and `/api/reports/monthly?month=YYYY-MM` (admins); billing uses each order line's unit-price snapshot. UI at `/admin/reports`
-- `src/lib/line/`: phase-2 LINE bot. `bot.ts` runs the conversation (binding by 6-digit code, order → Flex confirmation card → postback 確認/取消, queries; picks the meal, prices and cutoffs itself), `parse.ts` asks `claude-haiku-5-5` for a structured reading of the message (Zod + `messages.parse`; the model never decides prices or cutoffs), `api.ts` verifies signatures and sends replies/pushes (`LINE_DRY_RUN=1` logs instead), `notify.ts` pushes to the site's contacts when staff change an order after cutoff (called from `/admin/orders`). Webhook: `POST /api/line/webhook` (answers at once, handles events in `after()`). Contacts are managed on `/admin/sites/[id]`
+- `src/lib/line/`: phase-2 LINE bot. `bot.ts` runs the conversation (binding by 6-digit code, rate limited like login with `line:<userId>` keys, and a valid code moves an account off its old contact; order → Flex confirmation card → postback 確認/取消, queries, rich-menu postbacks `menu:*`; picks the meal, prices and cutoffs itself; unfollow sets `line_contacts.unfollowed_at`, follow clears it), `parse.ts` asks `claude-haiku-5-5` for a structured reading of the message (Zod + `messages.parse`; the model never decides prices or cutoffs), `api.ts` verifies signatures and sends replies/pushes (`LINE_DRY_RUN=1` logs instead), `notify.ts` pushes to the site's contacts (skipping ones that blocked the account) when staff change an order after cutoff (called from `/admin/orders`). Webhook: `POST /api/line/webhook` (answers at once, handles events in `after()`). Contacts are managed on `/admin/sites/[id]`
 - `src/lib/system-ca.ts`: with `TRUST_SYSTEM_CA=1`, `src/instrumentation.ts` adds the OS certificate store at startup (company TLS proxy)
 - `src/lib/order-view.ts`: loads what an order editor needs; validates Server Action input
 - `src/lib/auth.ts`: staff sessions (random cookie token, stored SHA-256 hashed in `sessions`). Every admin page and Server Action calls `requireEmployee()`; `src/proxy.ts` only redirects cookieless `/admin` requests to `/login`. Login is rate limited (5 failures per username or 30 per IP in 15 minutes, checked before the password); an admin password reset clears the username's failures
@@ -47,6 +47,8 @@ Product spec (Traditional Chinese): [docs/spec.md](docs/spec.md)
 - The build runs without a database. A GET route handler that doesn't read the request is prerendered at build time, so start it with `await connection()` (see `/api/health`)
 - `"use server"` files may only export async functions; put shared constants elsewhere (e.g. `src/lib/meals.ts`)
 - `scripts/`: dev scripts run with `tsx`
+- `docs/brand/`: LINE bot avatar and rich-menu image (SVG source + rendered PNG). The avatar is uploaded by hand in LINE Official Account Manager; the API can't set it
+- `src/pic/`: reference screenshots from the requirements and LINE testing (cited in `docs/spec.md`)
 - `drizzle/`: generated migrations
 
 ## Deployment (Azure)

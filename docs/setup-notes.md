@@ -92,6 +92,7 @@ The workflow runs `npm run db:migrate` (secret `DATABASE_URL`) after the build a
 
 ## Changelog
 
+- 2026-10-29: CLAUDE.md describes the LINE binding rules (rate limit, rebinding, unfollow) under `src/lib/line/` and lists `docs/brand/` and `src/pic/` in Layout.
 - 2026-10-29: LINE binding hardening. Wrong binding codes count in `login_failures` (username `line:<userId>`, ip `line`): 5 per LINE account or 30 across all within 15 minutes block binding. A LINE account still bound to a deactivated site moves to the new contact when it sends a valid code (it used to fail on the unique `line_user_id`). Blocking the official account sets the new column `line_contacts.unfollowed_at` (migration `0007_tricky_the_hunter`); pushes skip it and the site page shows 已封鎖官方帳號, and unblocking clears it.
 - 2026-10-29: LINE rich menu 永發便當 (我要訂餐、查詢訂單、截止時間): `npm run line:richmenu`, image and avatar in `docs/brand/`. The bot answers the `menu:*` postbacks; 查詢訂單 queries the next open meal without the model. It replaced 72 leftover test menus (快捷選單 A/B) that another tool had linked to individual users.
 - 2026-10-29: Moved Azure from East Asia to Japan East (web app `fms1027-jp`, plan `fms-plan-jp`, database server `fms1027-db-jp`): the Anthropic API refuses requests from Hong Kong with 403, so LINE orders failed with 「系統忙碌中」. The workflows deploy to and confirm with `fms1027-jp`.
