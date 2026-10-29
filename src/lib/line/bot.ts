@@ -49,6 +49,11 @@ const WEEKDAY = ["", "一", "二", "三", "四", "五", "六", "日"];
 const HELP =
   "請直接傳訊息訂餐，例如：\n・明天午餐葷 12、素 3\n・今天素的改成 0\n・週五取消\n・今天訂了什麼？\n沒講日期時，會幫你訂下一個還沒截止的餐次。";
 
+const CUTOFFS =
+  "訂餐截止時間：\n・午餐：當日 11:00\n・晚餐：當日 16:00\n・B 餐：前一天 16:00\n截止後無法用 LINE 修改，請來電由專人處理。";
+
+const BIND_FIRST = "請先輸入 6 位數綁定碼完成綁定。";
+
 type Contact = { id: number; siteId: number; siteLabel: string };
 
 export async function handleEvent(event: LineEvent) {
@@ -68,14 +73,17 @@ export async function handleEvent(event: LineEvent) {
       ),
     ]);
   }
-  if (event.type === "postback" && contact && event.postback) {
-    return answer(await handlePostback(contact, event.postback.data));
+  if (event.type === "postback" && event.postback) {
+    const { data } = event.postback;
+    if (data.startsWith("menu:")) return answer(contact ? await handleMenu(contact, data) : [text(BIND_FIRST)]);
+    if (contact) return answer(await handlePostback(contact, data));
+    return;
   }
   if (event.type !== "message") return;
 
   const body = event.message?.type === "text" ? (event.message.text ?? "").trim() : "";
   if (!contact) {
-    return answer([text(/^\d{6}$/.test(body) ? await bind(userId, body) : "請先輸入 6 位數綁定碼完成綁定。")]);
+    return answer([text(/^\d{6}$/.test(body) ? await bind(userId, body) : BIND_FIRST)]);
   }
   if (!body) return answer([text(HELP)]);
   if (body.length > MAX_MESSAGE) return answer([text("訊息太長了，請簡短說明要訂的內容。")]);
@@ -139,7 +147,25 @@ async function handleText(contact: Contact, body: string): Promise<LineMessage[]
   if (!parsed || parsed.intent === "unclear" || (parsed.intent === "order" && parsed.lines.length === 0)) {
     return [text(`抱歉，我看不太懂，可以換個說法嗎？\n\n${HELP}`)];
   }
+  return handleRequest(contact, parsed, body, now);
+}
 
+// Rich menu buttons (scripts/line-richmenu.ts). 查詢訂單 skips the model:
+// it is a query for the next open meal.
+async function handleMenu(contact: Contact, data: string): Promise<LineMessage[]> {
+  switch (data) {
+    case "menu:help":
+      return [text(HELP)];
+    case "menu:cutoff":
+      return [text(CUTOFFS)];
+    case "menu:query":
+      return handleRequest(contact, { intent: "query", date: null, slot: null, lines: [] }, "", new Date());
+    default:
+      return [];
+  }
+}
+
+async function handleRequest(contact: Contact, parsed: ParsedRequest, body: string, now: Date): Promise<LineMessage[]> {
   const target = await resolveMeal(contact.siteId, parsed, now);
   if ("error" in target) return [text(target.error)];
   const { key, planPrice, defaulted } = target;

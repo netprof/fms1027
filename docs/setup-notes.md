@@ -92,6 +92,7 @@ The workflow runs `npm run db:migrate` (secret `DATABASE_URL`) after the build a
 
 ## Changelog
 
+- 2026-10-29: LINE rich menu 永發便當 (我要訂餐、查詢訂單、截止時間): `npm run line:richmenu`, image and avatar in `docs/brand/`. The bot answers the `menu:*` postbacks; 查詢訂單 queries the next open meal without the model. It replaced 72 leftover test menus (快捷選單 A/B) that another tool had linked to individual users.
 - 2026-10-29: Moved Azure from East Asia to Japan East (web app `fms1027-jp`, plan `fms-plan-jp`, database server `fms1027-db-jp`): the Anthropic API refuses requests from Hong Kong with 403, so LINE orders failed with 「系統忙碌中」. The workflows deploy to and confirm with `fms1027-jp`.
 - 2026-10-29: CLAUDE.md gains a Deployment (Azure) section: deploy branch, migration rule, database reachability, local `DATABASE_URL`, Azure CLI path and logs.
 - 2026-10-29: The Azure workflow runs `db:migrate` before each deploy, using the new GitHub secret `DATABASE_URL`.

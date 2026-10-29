@@ -19,6 +19,7 @@ Product spec (Traditional Chinese): [docs/spec.md](docs/spec.md)
 - `npm run orders:generate -- [from] [to]`: create missing standing orders for a date range (default today), e.g. after downtime
 - `npm run db:seed`: wipe every table and load sample data (`scripts/seed.ts`, dev only). With `SEED_KEEP_LOGINS=1` it keeps employees that have a login and creates drivers without one (no dev passwords)
 - `npm run admin:create -- <username> <姓名> [電話]`: create (or reset) an admin login without touching other data; prints a random password unless `ADMIN_PASSWORD` is set. For a fresh production database
+- `npm run line:richmenu [-- --replace]`: create the LINE rich menu from `docs/brand/line-richmenu.png` (buttons 我要訂餐/查詢訂單/截止時間 → postbacks `menu:*` in `bot.ts`) and make it the default; `--replace` deletes every other rich menu (per-user menus override the default). Needs `LINE_CHANNEL_ACCESS_TOKEN`
 
 ## Layout
 
