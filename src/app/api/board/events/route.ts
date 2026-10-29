@@ -1,7 +1,9 @@
+import { connection } from "next/server";
 import { subscribeOrderEvents } from "@/lib/order-events";
 
 // Server-Sent Events: one `change` event per committed order change.
 export async function GET(request: Request) {
+  await connection(); // never prerender: the stream needs a live listener
   const encoder = new TextEncoder();
   const { signal } = request;
 

@@ -50,7 +50,17 @@ const recent = sql`now() - make_interval(mins => ${LOCKOUT_MINUTES})`;
 // the per-username limit is the one that matters.
 export async function clientIp(): Promise<string> {
   const h = await headers();
-  return h.get("x-forwarded-for")?.split(",")[0].trim() || h.get("x-real-ip") || "unknown";
+  const ip = h.get("x-forwarded-for")?.split(",")[0].trim() || h.get("x-real-ip");
+  return ip ? stripPort(ip) : "unknown";
+}
+
+// Azure App Service forwards "1.2.3.4:51234" and "[::1]:51234"; the port
+// changes per connection and would defeat the per-IP limit.
+function stripPort(ip: string): string {
+  const bracketed = ip.match(/^\[(.+)\](?::\d+)?$/);
+  if (bracketed) return bracketed[1];
+  const v4 = ip.match(/^(\d{1,3}(?:\.\d{1,3}){3}):\d+$/);
+  return v4 ? v4[1] : ip;
 }
 
 export async function loginBlocked(username: string, ip: string): Promise<boolean> {

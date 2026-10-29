@@ -1,0 +1,68 @@
+# Builds on every push to develop and deploys to Azure App Service (Linux),
+# web app fms1027-demo.
+# One-time setup (OIDC login, secrets, app settings): docs/setup-notes.md → "Azure".
+# The build needs no database or secrets; the migrate step uses the
+# DATABASE_URL secret, the app reads its own from the web app's settings.
+name: Deploy to Azure
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+permissions:
+  id-token: write # OIDC login to Azure, no stored password
+  contents: read
+
+concurrency:
+  group: azure-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+        env:
+          BUILD_STANDALONE: "1"
+
+      # .next/standalone is a self-contained server (server.js + traced
+      # node_modules); static assets and public/ are copied in beside it.
+      - name: Package
+        run: |
+          cp -r public .next/standalone/
+          cp -r .next/static .next/standalone/.next/
+          cd .next/standalone && zip -qr ../../app.zip .
+
+      # Before the deploy, so new code never runs against an old schema.
+      # GitHub-hosted runners run in Azure, which the database's
+      # AllowAzureServices firewall rule lets in. Migrations must therefore
+      # also work with the code still running until the deploy finishes.
+      - name: Migrate database
+        run: npm run db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_F3E8BABD5AAE4FEB8B2DB597F9894BAD }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_F2693C9C42EF47C3913EDB9C080D667A }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_DC1D8B5544DB44A595AB08A2F45C0CDE }}
+
+      - uses: azure/webapps-deploy@v3
+        with:
+          app-name: fms1027-demo
+          package: app.zip
+          # Wipe wwwroot first. Leftovers from another deploy (an Oryx
+          # oryx-manifest.toml and node_modules.tar.zst) make App Service swap
+          # in their node_modules, and old .next files break Server Actions.
+          clean: true

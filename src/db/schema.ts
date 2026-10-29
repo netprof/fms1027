@@ -98,6 +98,23 @@ export const sites = pgTable("sites", {
   ...timestamps,
 });
 
+// A site's LINE contacts (phase 2). Staff create one and hand over bindCode;
+// the customer sends it to the bot, which fills lineUserId. One LINE account
+// belongs to one site.
+export const lineContacts = pgTable("line_contacts", {
+  id: serial("id").primaryKey(),
+  siteId: integer("site_id")
+    .notNull()
+    .references(() => sites.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  lineUserId: text("line_user_id").unique(),
+  displayName: text("display_name"),
+  bindCode: text("bind_code").unique(),
+  bindCodeExpiresAt: timestamp("bind_code_expires_at", { withTimezone: true }),
+  boundAt: timestamp("bound_at", { withTimezone: true }),
+  ...timestamps,
+});
+
 // Routes are set per meal slot so dinner can differ from lunch.
 export const routes = pgTable("routes", {
   id: serial("id").primaryKey(),
@@ -208,6 +225,35 @@ export const orders = pgTable(
   (t) => [unique().on(t.siteId, t.date, t.slot)],
 );
 
+// An order parsed from a LINE message, waiting for the customer to tap
+// 確認 or 取消. before is the order as shown on the card; confirming fails if
+// the order changed since. lines are the full order after the change.
+export const lineDraftStatus = pgEnum("line_draft_status", [
+  "pending",
+  "confirmed",
+  "cancelled",
+  "superseded",
+]);
+
+export const lineDrafts = pgTable("line_drafts", {
+  id: serial("id").primaryKey(),
+  contactId: integer("contact_id")
+    .notNull()
+    .references(() => lineContacts.id, { onDelete: "cascade" }),
+  siteId: integer("site_id")
+    .notNull()
+    .references(() => sites.id, { onDelete: "cascade" }),
+  date: date("date", { mode: "string" }).notNull(),
+  slot: mealSlot("slot").notNull(),
+  before: jsonb("before").notNull(),
+  lines: jsonb("lines").notNull(),
+  message: text("message").notNull(),
+  status: lineDraftStatus("status").notNull().default("pending"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 // unitPrice is a snapshot taken when the line is written; billing uses it.
 // It may be a custom price outside price_tiers ("其它" price).
 export const orderLines = pgTable(
@@ -234,6 +280,9 @@ export const orderChanges = pgTable("order_changes", {
     .references(() => orders.id, { onDelete: "cascade" }),
   source: changeSource("source").notNull(),
   employeeId: integer("employee_id").references(() => employees.id),
+  lineContactId: integer("line_contact_id").references(() => lineContacts.id, {
+    onDelete: "set null",
+  }),
   afterCutoff: boolean("after_cutoff").notNull().default(false),
   reason: text("reason"),
   before: jsonb("before"),

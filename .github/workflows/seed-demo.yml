@@ -1,0 +1,39 @@
+# Replaces all business data in the Azure database with the sample data from
+# scripts/seed.ts. Logins (and their sessions) are kept; drivers get no login.
+# Run by hand from the Actions tab and type the app name to confirm.
+name: Seed demo data (Azure)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Wipes customers, routes, orders and menus. Type fms1027-demo to confirm"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: azure-deploy # never alongside a deploy's migration
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    if: inputs.confirm == 'fms1027-demo'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - run: npm run db:seed
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SEED_KEEP_LOGINS: "1"
