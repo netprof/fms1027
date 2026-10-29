@@ -20,9 +20,9 @@ With `LINE_DRY_RUN=1` nothing is sent to LINE; replies and pushes are logged as 
 
 The app runs on Azure App Service (Linux, Node 22). The database is Azure Database for PostgreSQL flexible server 17. Serverless hosting (Static Web Apps, Functions) doesn't fit: the dashboard keeps SSE connections and a LISTEN connection open, and the scheduler runs inside the server. Every push to `develop` builds and deploys through `.github/workflows/azure.yml` to the web app `fms1027-jp` (resource group `rg-fms-demo`, Japan East; plan `fms-plan-jp`; database server `fms1027-db-jp`, database `fms_demo`).
 
-Pick a region the Anthropic API serves. The app first ran in East Asia (Hong Kong), where every Claude call got 403 `forbidden` "Request not allowed" (no request id, Cloudflare edge `HKG`), so LINE orders answered 「系統忙碌中」. It moved to Japan East on 2026-10-29.
+Pick a region the Anthropic API serves. The app first ran in East Asia (Hong Kong), where every Claude call got 403 `forbidden` "Request not allowed" (no request id, Cloudflare edge `HKG`), so LINE orders answered 「系統忙碌中」. It moved to Japan East on 2026-10-29, and the East Asia app, plan and database were deleted.
 
-The first app, `fms1027-demo`, was set up through the portal's Deployment Center, which created the OIDC login (managed identity `fms1027-demo-id-9d31`, federated with `develop`) and the `AZUREAPPSERVICE_*` secrets. The workflow still logs in with that identity; it needs Website Contributor on whichever web app it deploys to. The workflow it generated shipped the whole repo, lost `node_modules/.bin` on the way and failed with `next: not found`, so it was replaced.
+The first app, `fms1027-demo` (now deleted), was set up through the portal's Deployment Center, which created the OIDC login (managed identity `fms1027-demo-id-9d31`, federated with `develop`) and the `AZUREAPPSERVICE_*` secrets. The workflow still logs in with that identity; it needs Website Contributor on whichever web app it deploys to. The workflow it generated shipped the whole repo, lost `node_modules/.bin` on the way and failed with `next: not found`, so it was replaced.
 
 The build sets `BUILD_STANDALONE=1`, which gives `output: "standalone"`. `.next/standalone` is a self-contained `server.js` with only the traced `node_modules`. The build needs no database or secrets.
 
