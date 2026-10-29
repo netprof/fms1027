@@ -28,6 +28,7 @@ import {
   type OrderKey,
   type OrderLine,
 } from "../orders";
+import { LOCKOUT_MINUTES, clearLoginFailures, loginBlocked, recordLoginFailure } from "../auth";
 import { getDisplayName, reply, text, type LineMessage } from "./api";
 import { parseRequest, type ParsedRequest } from "./parse";
 
@@ -58,8 +59,17 @@ type Contact = { id: number; siteId: number; siteLabel: string };
 
 export async function handleEvent(event: LineEvent) {
   const userId = event.source?.type === "user" ? event.source.userId : undefined;
+  if (!userId) return;
+  // Blocking the official account keeps the binding; pushes skip it until
+  // the customer unblocks (follow).
+  if (event.type === "unfollow" || event.type === "follow") {
+    await db
+      .update(lineContacts)
+      .set({ unfollowedAt: event.type === "unfollow" ? sql`now()` : null })
+      .where(eq(lineContacts.lineUserId, userId));
+  }
   const token = event.replyToken;
-  if (!userId || !token) return;
+  if (!token) return;
 
   const contact = await findContact(userId);
   const answer = (messages: LineMessage[]) => reply(token, messages);
@@ -105,27 +115,54 @@ async function findContact(userId: string): Promise<Contact | null> {
   return row ? { id: row.id, siteId: row.siteId, siteLabel: `${row.companyName}${row.siteName}` } : null;
 }
 
+// Wrong codes go through the login rate limit (src/lib/auth.ts): 5 per LINE
+// account, and 30 across all LINE accounts, within 15 minutes.
+const BIND_FAILURES = "line";
+
 async function bind(userId: string, code: string): Promise<string> {
+  const failKey = `line:${userId}`;
+  if (await loginBlocked(failKey, BIND_FAILURES)) {
+    return `綁定碼錯誤次數太多，請 ${LOCKOUT_MINUTES} 分鐘後再試，或來電由專人處理。`;
+  }
   const displayName = await getDisplayName(userId);
-  const [bound] = await db
-    .update(lineContacts)
-    .set({
-      lineUserId: userId,
-      displayName,
-      boundAt: sql`now()`,
-      bindCode: null,
-      bindCodeExpiresAt: null,
-      updatedAt: sql`now()`,
-    })
-    .where(
-      and(
-        eq(lineContacts.bindCode, code),
-        gt(lineContacts.bindCodeExpiresAt, sql`now()`),
-        isNull(lineContacts.lineUserId),
-      ),
-    )
-    .returning({ siteId: lineContacts.siteId });
-  if (!bound) return "綁定碼不正確或已過期，請向我們索取新的綁定碼。";
+  const bound = await db.transaction(async (tx) => {
+    const [target] = await tx
+      .select({ id: lineContacts.id })
+      .from(lineContacts)
+      .where(
+        and(
+          eq(lineContacts.bindCode, code),
+          gt(lineContacts.bindCodeExpiresAt, sql`now()`),
+          isNull(lineContacts.lineUserId),
+        ),
+      )
+      .for("update");
+    if (!target) return false;
+    // Still bound here means the old site was deactivated (findContact skips
+    // it). Staff issued the new code, so the account moves to that contact.
+    await tx
+      .update(lineContacts)
+      .set({ lineUserId: null, displayName: null, boundAt: null, unfollowedAt: null, updatedAt: sql`now()` })
+      .where(eq(lineContacts.lineUserId, userId));
+    await tx
+      .update(lineContacts)
+      .set({
+        lineUserId: userId,
+        displayName,
+        boundAt: sql`now()`,
+        bindCode: null,
+        bindCodeExpiresAt: null,
+        unfollowedAt: null,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(lineContacts.id, target.id));
+    return true;
+  });
+  if (!bound) {
+    await recordLoginFailure(failKey, BIND_FAILURES);
+    return "綁定碼不正確或已過期，請向我們索取新的綁定碼。";
+  }
+  await clearLoginFailures(failKey);
   const contact = await findContact(userId);
   return `綁定完成！你是 ${contact?.siteLabel ?? ""} 的訂餐聯絡人。\n\n${HELP}`;
 }

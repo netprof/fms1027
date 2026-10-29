@@ -50,6 +50,13 @@
       "when": 1793168806353,
       "tag": "0006_big_surge",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793262667120,
+      "tag": "0007_tricky_the_hunter",
+      "breakpoints": true
     }
   ]
 }

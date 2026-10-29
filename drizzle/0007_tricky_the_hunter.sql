@@ -1,0 +1,1 @@
+ALTER TABLE "line_contacts" ADD COLUMN "unfollowed_at" timestamp with time zone;

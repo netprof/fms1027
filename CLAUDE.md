@@ -24,7 +24,7 @@ Product spec (Traditional Chinese): [docs/spec.md](docs/spec.md)
 ## Layout
 
 - `src/app/`: App Router pages and route handlers
-- `src/db/schema.ts`: the Drizzle schema (source of truth). Tables: employees, sessions and login_failures (login rate limit), companies, line_contacts (a site's LINE accounts and binding codes), line_drafts (LINE orders awaiting 確認), sites (廠區, the ordering unit), routes (per meal slot) and route_driver_overrides, price_tiers, site_meal_plans, site_default_lines, menus, holidays, orders, order_lines (unit-price snapshot) and order_changes (audit trail and dashboard highlights; `line_contact_id` for LINE orders)
+- `src/db/schema.ts`: the Drizzle schema (source of truth). Tables: employees, sessions and login_failures (login and LINE binding-code rate limit), companies, line_contacts (a site's LINE accounts and binding codes), line_drafts (LINE orders awaiting 確認), sites (廠區, the ordering unit), routes (per meal slot) and route_driver_overrides, price_tiers, site_meal_plans, site_default_lines, menus, holidays, orders, order_lines (unit-price snapshot) and order_changes (audit trail and dashboard highlights; `line_contact_id` for LINE orders)
 - `src/db/index.ts`: `db` client (`import { db } from "@/db"`)
 - `src/lib/meals.ts`: meal slots/kinds, cutoffs and Asia/Taipei date helpers (client-safe)
 - `src/lib/orders.ts`: the only place orders are written; enforces cutoffs for customers, flags staff changes after cutoff, creates each day's default orders (`ensureDailyOrders`, idempotent; called by pages and by the scheduler)
