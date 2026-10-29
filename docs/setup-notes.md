@@ -61,8 +61,12 @@ One-time setup (`<app>` is the web app name, `<db>` the database server):
    gh secret set AZURE_SUBSCRIPTION_ID --body $(az account show --query id -o tsv)
    gh variable set AZURE_WEBAPP_NAME --body <app>
    ```
+   The deploy also needs the database URL as a secret, for its migrate step (also for `fms1027-demo`):
+   ```bash
+   az webapp config appsettings list -g fms-rg -n <app> --query "[?name=='DATABASE_URL'].value" -o tsv | gh secret set DATABASE_URL
+   ```
    The credential only accepts runs on `develop`.
-4. From a machine that can reach port 5432, apply migrations and create the first admin. The company network blocks 5432.
+4. Create the first admin from a machine that can reach port 5432, such as Azure Cloud Shell (https://shell.azure.com, covered by the `AllowAzureServices` rule). The company network blocks 5432. The deploy migrates on its own; run `db:migrate` here only if the first deploy hasn't run yet.
    ```bash
    az postgres flexible-server firewall-rule create -g fms-rg -s <db> -n me --start-ip-address <your IP> --end-ip-address <your IP>
    DATABASE_URL="<as above>" npm run db:migrate
@@ -72,7 +76,7 @@ One-time setup (`<app>` is the web app name, `<db>` the database server):
 5. Push to `develop`, or run the workflow by hand from the Actions tab. Then check `https://<app>.azurewebsites.net/api/health`.
 6. In the LINE Developers console, set the webhook URL to `https://<app>.azurewebsites.net/api/line/webhook` and press Verify.
 
-Run migrations by hand before deploying a change that adds one. The workflow doesn't migrate.
+The workflow runs `npm run db:migrate` (secret `DATABASE_URL`) after the build and before the deploy. GitHub-hosted runners run in Azure, so the `AllowAzureServices` rule lets them in. The old code keeps running until the deploy finishes, so a migration has to work with it too. Add columns as nullable or with a default, and drop or rename them only in a later deploy. If the migration fails, nothing is deployed.
 
 ## One-time context
 
@@ -82,6 +86,7 @@ Run migrations by hand before deploying a change that adds one. The workflow doe
 
 ## Changelog
 
+- 2026-10-29: The Azure workflow runs `db:migrate` before each deploy, using the new GitHub secret `DATABASE_URL`.
 - 2026-10-28: Azure deployment: `.github/workflows/azure.yml` builds a standalone server (`BUILD_STANDALONE=1`) and deploys it to App Service (`fms1027-demo`) on every push to `develop`. It replaces the Deployment Center workflow `develop_fms1027-demo.yml`. Added `npm run admin:create` for a production database's first admin. The login rate limit now drops the port Azure appends to `x-forwarded-for`. `/api/health` and `/api/board/events` call `connection()`, so the build no longer runs them: it used to need a database, and baked in a fixed health result.
 
 Newest first, with absolute dates.

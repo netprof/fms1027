@@ -1,7 +1,8 @@
 # Builds on every push to develop and deploys to Azure App Service (Linux),
 # web app fms1027-demo.
 # One-time setup (OIDC login, secrets, app settings): docs/setup-notes.md → "Azure".
-# The build needs no database or secrets; those live in the web app's settings.
+# The build needs no database or secrets; the migrate step uses the
+# DATABASE_URL secret, the app reads its own from the web app's settings.
 name: Deploy to Azure
 
 on:
@@ -41,6 +42,15 @@ jobs:
           cp -r public .next/standalone/
           cp -r .next/static .next/standalone/.next/
           cd .next/standalone && zip -qr ../../app.zip .
+
+      # Before the deploy, so new code never runs against an old schema.
+      # GitHub-hosted runners run in Azure, which the database's
+      # AllowAzureServices firewall rule lets in. Migrations must therefore
+      # also work with the code still running until the deploy finishes.
+      - name: Migrate database
+        run: npm run db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
       - uses: azure/login@v2
         with:
