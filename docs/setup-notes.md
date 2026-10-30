@@ -92,6 +92,7 @@ The workflow runs `npm run db:migrate` (secret `DATABASE_URL`) after the build a
 
 ## Changelog
 
+- 2026-10-30: 每日明細 is now a Flex table (日期/餐/內容/金額 with a subtotal), one card per half month in a carousel; checked with LINE's `/message/validate/reply`.
 - 2026-10-30: The LINE bill reply adds a second message, 每日明細: one line per day and meal with items and amount (split at LINE's 5,000-character limit).
 - 2026-10-30: The rich menu grows to two rows (2500×1686) with 上月帳單 and 本月帳單. The bot answers `menu:bill-last` / `menu:bill-this` with the site's quantities and amounts from the unit-price snapshots; `monthlyLines()` takes an optional site and end date. Run `npm run line:richmenu -- --replace` after the deploy.
 - 2026-10-29: CLAUDE.md describes the LINE binding rules (rate limit, rebinding, unfollow) under `src/lib/line/` and lists `docs/brand/` and `src/pic/` in Layout.

@@ -396,19 +396,81 @@ async function bill(contact: Contact, current: boolean): Promise<LineMessage[]> 
   }
   const daily = [...meals.values()]
     .sort((a, b) => a.date.localeCompare(b.date) || MEAL_SLOTS.indexOf(a.slot) - MEAL_SLOTS.indexOf(b.slot))
-    .map(({ date, slot, lines }) => {
-      const items = normalizeLines(lines).map((l) => `${itemLabel(l)}${l.unitPrice}×${l.quantity}`);
-      const sum = lines.reduce((n, l) => n + l.quantity * l.unitPrice, 0);
-      return `${dayLabel(date)}${SLOT_LABEL[slot].slice(0, 1)} ${items.join("、")}　${money(sum)}`;
-    });
-  // A text message holds 5,000 characters and a reply 5 messages.
-  const chunks: string[] = [];
-  for (const line of [`${m} 月每日明細`, ...daily]) {
-    const last = chunks.length - 1;
-    if (last >= 0 && chunks[last].length + line.length + 1 <= 5000) chunks[last] += `\n${line}`;
-    else chunks.push(line);
-  }
-  return [summary, ...chunks.slice(0, 4)].map((s) => text(s));
+    .map(({ date, slot, lines }) => ({
+      date,
+      slot,
+      items: normalizeLines(lines).map((l) => `${itemLabel(l)} ${l.unitPrice}×${l.quantity}`),
+      amount: lines.reduce((n, l) => n + l.quantity * l.unitPrice, 0),
+    }));
+  // A table card per half month, swiped as a carousel; one bubble for the
+  // whole month would pass LINE's size limit for busy sites.
+  const halves = [daily.filter((r) => r.date.slice(8) <= "15"), daily.filter((r) => r.date.slice(8) > "15")];
+  const bubbles = halves
+    .filter((h) => h.length > 0)
+    .map((h) => detailBubble(`${m} 月每日明細`, `${dayLabel(h[0].date)} – ${dayLabel(h.at(-1)!.date)}`, h, money));
+  return [
+    text(summary),
+    { type: "flex", altText: `${m} 月每日明細`, contents: { type: "carousel", contents: bubbles } },
+  ];
+}
+
+type DailyRow = { date: string; slot: MealSlot; items: string[]; amount: number };
+
+const cell = (value: string, flex: number, extra: Record<string, unknown> = {}) => ({
+  type: "text",
+  text: value,
+  size: "xs",
+  flex,
+  wrap: true,
+  ...extra,
+});
+
+function detailBubble(title: string, range: string, rows: DailyRow[], money: (n: number) => string) {
+  const line = (cells: object[], extra: Record<string, unknown> = {}) => ({
+    type: "box",
+    layout: "horizontal",
+    spacing: "sm",
+    paddingAll: "6px",
+    contents: cells,
+    ...extra,
+  });
+  const head = { color: "#64748b", weight: "bold" };
+  const total = rows.reduce((n, r) => n + r.amount, 0);
+  return {
+    type: "bubble",
+    size: "giga",
+    header: {
+      type: "box",
+      layout: "vertical",
+      backgroundColor: "#3f51b5",
+      contents: [
+        { type: "text", text: title, color: "#ffffff", weight: "bold", size: "md" },
+        { type: "text", text: range, color: "#e8eaf6", size: "xs" },
+      ],
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      paddingAll: "8px",
+      contents: [
+        line([cell("日期", 4, head), cell("餐", 2, head), cell("內容", 7, head), cell("金額", 4, { ...head, align: "end" })]),
+        { type: "separator" },
+        ...rows.map((r, i) =>
+          line(
+            [
+              cell(dayLabel(r.date), 4),
+              cell(SLOT_LABEL[r.slot], 2),
+              cell(r.items.join("\n"), 7),
+              cell(money(r.amount), 4, { align: "end" }),
+            ],
+            i % 2 ? { backgroundColor: "#f1f5f9" } : {},
+          ),
+        ),
+        { type: "separator" },
+        line([cell("小計", 13, { weight: "bold" }), cell(money(total), 4, { weight: "bold", align: "end" })]),
+      ],
+    },
+  };
 }
 
 function dayLabel(date: string) {
