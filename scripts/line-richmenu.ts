@@ -1,6 +1,7 @@
 // Creates the bot's rich menu from docs/brand/line-richmenu.png and makes it
 // the default for every user. The buttons send postbacks that
-// src/lib/line/bot.ts answers (menu:help, menu:query, menu:cutoff).
+// src/lib/line/bot.ts answers (menu:help, menu:query, menu:cutoff,
+// menu:bill-last, menu:bill-this).
 //   npm run line:richmenu            add the menu and set it as default
 //   npm run line:richmenu -- --replace   also delete every other rich menu
 // --replace is needed when old menus are linked to individual users: a
@@ -12,7 +13,8 @@ const API = "https://api.line.me/v2/bot";
 const DATA_API = "https://api-data.line.me/v2/bot";
 const IMAGE = "docs/brand/line-richmenu.png";
 const WIDTH = 2500;
-const HEIGHT = 843;
+const HEIGHT = 1686;
+const ROW = HEIGHT / 2;
 
 const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 if (!token) {
@@ -28,15 +30,21 @@ async function call(method: string, url: string, body?: BodyInit, type = "applic
   return text ? JSON.parse(text) : {};
 }
 
-const buttons = [
-  { data: "menu:help", label: "我要訂餐" },
-  { data: "menu:query", label: "查詢訂單" },
-  { data: "menu:cutoff", label: "截止時間" },
+// Top row: three buttons; bottom row: two. Matches docs/brand/line-richmenu.svg.
+const rows = [
+  [
+    { data: "menu:help", label: "我要訂餐" },
+    { data: "menu:query", label: "查詢訂單" },
+    { data: "menu:cutoff", label: "截止時間" },
+  ],
+  [
+    { data: "menu:bill-last", label: "上月帳單" },
+    { data: "menu:bill-this", label: "本月帳單" },
+  ],
 ];
 
 async function main() {
   const replace = process.argv.includes("--replace");
-  const third = Math.floor(WIDTH / buttons.length);
   const { richMenuId } = await call(
     "POST",
     `${API}/richmenu`,
@@ -45,10 +53,13 @@ async function main() {
       selected: true,
       name: "永發便當",
       chatBarText: "永發便當選單",
-      areas: buttons.map((b, i) => ({
-        bounds: { x: i * third, y: 0, width: i === buttons.length - 1 ? WIDTH - i * third : third, height: HEIGHT },
-        action: { type: "postback", data: b.data, displayText: b.label },
-      })),
+      areas: rows.flatMap((buttons, r) => {
+        const cell = Math.floor(WIDTH / buttons.length);
+        return buttons.map((b, i) => ({
+          bounds: { x: i * cell, y: r * ROW, width: i === buttons.length - 1 ? WIDTH - i * cell : cell, height: ROW },
+          action: { type: "postback", data: b.data, displayText: b.label },
+        }));
+      }),
     }),
   );
   await call("POST", `${DATA_API}/richmenu/${richMenuId}/content`, await readFile(IMAGE), "image/png");

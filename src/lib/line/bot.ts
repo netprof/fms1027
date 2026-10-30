@@ -1,5 +1,5 @@
 // The LINE bot conversation: binding, natural-language orders with a
-// confirmation card, queries. See docs/spec.md (第二期). The AI only parses
+// confirmation card, queries, monthly bills. See docs/spec.md (第二期). The AI only parses
 // (src/lib/line/parse.ts); this file resolves the meal, prices and cutoffs,
 // and every order write goes through src/lib/orders.ts.
 import { and, eq, gt, isNull, sql } from "drizzle-orm";
@@ -7,6 +7,7 @@ import { db } from "@/db";
 import { companies, lineContacts, lineDrafts, siteMealPlans, sites } from "@/db/schema";
 import {
   KIND_LABEL,
+  MEAL_KINDS,
   MEAL_SLOTS,
   SLOT_LABEL,
   addDays,
@@ -28,6 +29,7 @@ import {
   type OrderKey,
   type OrderLine,
 } from "../orders";
+import { monthlyLines } from "../reports";
 import { LOCKOUT_MINUTES, clearLoginFailures, loginBlocked, recordLoginFailure } from "../auth";
 import { getDisplayName, reply, text, type LineMessage } from "./api";
 import { parseRequest, type ParsedRequest } from "./parse";
@@ -197,6 +199,9 @@ async function handleMenu(contact: Contact, data: string): Promise<LineMessage[]
       return [text(CUTOFFS)];
     case "menu:query":
       return handleRequest(contact, { intent: "query", date: null, slot: null, lines: [] }, "", new Date());
+    case "menu:bill-last":
+    case "menu:bill-this":
+      return [text(await bill(contact, data === "menu:bill-this"))];
     default:
       return [];
   }
@@ -342,6 +347,43 @@ async function handlePostback(contact: Contact, data: string): Promise<LineMessa
     return [text(result.error)];
   }
   return [text(`已確認 ✓\n${mealTitle(key)}\n${describe(draft.lines as OrderLine[])}`)];
+}
+
+// The site's bill for last month, or this month up to today. Same order
+// lines and unit-price snapshots as the monthly statement (src/lib/reports.ts).
+async function bill(contact: Contact, current: boolean): Promise<string> {
+  const today = taipeiDate();
+  const thisMonth = today.slice(0, 7);
+  const month = current ? thisMonth : addDays(`${thisMonth}-01`, -1).slice(0, 7);
+  const rows = await monthlyLines(month, { siteId: contact.siteId, through: current ? today : undefined });
+  const [, m] = month.split("-").map(Number);
+  const [, , d] = today.split("-").map(Number);
+  const title = `${contact.siteLabel}\n${m} 月帳單${current ? `（截至 ${m}/${d}）` : ""}`;
+
+  const totals = new Map<string, { slot: MealSlot; line: OrderLine }>();
+  for (const r of rows) {
+    if (r.line.quantity === 0) continue;
+    const k = `${r.slot}:${r.line.kind}:${r.line.unitPrice}:${r.line.label ?? ""}`;
+    const t = totals.get(k) ?? { slot: r.slot, line: { ...r.line, quantity: 0 } };
+    t.line.quantity += r.line.quantity;
+    totals.set(k, t);
+  }
+  if (totals.size === 0) return `${title}\n\n${m} 月沒有訂餐紀錄。`;
+
+  const money = (n: number) => n.toLocaleString("en-US");
+  const sections = MEAL_SLOTS.flatMap((slot) => {
+    const lines = [...totals.values()]
+      .filter((t) => t.slot === slot)
+      .map((t) => t.line)
+      .sort((a, b) => MEAL_KINDS.indexOf(a.kind) - MEAL_KINDS.indexOf(b.kind) || b.unitPrice - a.unitPrice);
+    if (lines.length === 0) return [];
+    const items = lines.map((l) => `${itemLabel(l)} ${l.unitPrice}元 × ${l.quantity} = ${money(l.unitPrice * l.quantity)}`);
+    return [`【${SLOT_LABEL[slot]}】\n${items.join("\n")}`];
+  });
+  const all = [...totals.values()].map((t) => t.line);
+  const quantity = all.reduce((n, l) => n + l.quantity, 0);
+  const amount = all.reduce((n, l) => n + l.quantity * l.unitPrice, 0);
+  return `${title}\n\n${sections.join("\n\n")}\n\n合計 ${money(quantity)} 份，${money(amount)} 元\n實際請款以月結對帳單為準。`;
 }
 
 function dayLabel(date: string) {
