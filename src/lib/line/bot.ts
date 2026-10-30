@@ -201,7 +201,7 @@ async function handleMenu(contact: Contact, data: string): Promise<LineMessage[]
       return handleRequest(contact, { intent: "query", date: null, slot: null, lines: [] }, "", new Date());
     case "menu:bill-last":
     case "menu:bill-this":
-      return [text(await bill(contact, data === "menu:bill-this"))];
+      return bill(contact, data === "menu:bill-this");
     default:
       return [];
   }
@@ -351,7 +351,7 @@ async function handlePostback(contact: Contact, data: string): Promise<LineMessa
 
 // The site's bill for last month, or this month up to today. Same order
 // lines and unit-price snapshots as the monthly statement (src/lib/reports.ts).
-async function bill(contact: Contact, current: boolean): Promise<string> {
+async function bill(contact: Contact, current: boolean): Promise<LineMessage[]> {
   const today = taipeiDate();
   const thisMonth = today.slice(0, 7);
   const month = current ? thisMonth : addDays(`${thisMonth}-01`, -1).slice(0, 7);
@@ -368,7 +368,7 @@ async function bill(contact: Contact, current: boolean): Promise<string> {
     t.line.quantity += r.line.quantity;
     totals.set(k, t);
   }
-  if (totals.size === 0) return `${title}\n\n${m} 月沒有訂餐紀錄。`;
+  if (totals.size === 0) return [text(`${title}\n\n${m} 月沒有訂餐紀錄。`)];
 
   const money = (n: number) => n.toLocaleString("en-US");
   const sections = MEAL_SLOTS.flatMap((slot) => {
@@ -383,7 +383,32 @@ async function bill(contact: Contact, current: boolean): Promise<string> {
   const all = [...totals.values()].map((t) => t.line);
   const quantity = all.reduce((n, l) => n + l.quantity, 0);
   const amount = all.reduce((n, l) => n + l.quantity * l.unitPrice, 0);
-  return `${title}\n\n${sections.join("\n\n")}\n\n合計 ${money(quantity)} 份，${money(amount)} 元\n實際請款以月結對帳單為準。`;
+  const summary = `${title}\n\n${sections.join("\n\n")}\n\n合計 ${money(quantity)} 份，${money(amount)} 元\n實際請款以月結對帳單為準。`;
+
+  // One line per day and meal, in date order (monthlyLines sorts by date).
+  const meals = new Map<string, { date: string; slot: MealSlot; lines: OrderLine[] }>();
+  for (const r of rows) {
+    if (r.line.quantity === 0) continue;
+    const k = `${r.date}:${r.slot}`;
+    const meal = meals.get(k) ?? { date: r.date, slot: r.slot, lines: [] };
+    meal.lines.push(r.line);
+    meals.set(k, meal);
+  }
+  const daily = [...meals.values()]
+    .sort((a, b) => a.date.localeCompare(b.date) || MEAL_SLOTS.indexOf(a.slot) - MEAL_SLOTS.indexOf(b.slot))
+    .map(({ date, slot, lines }) => {
+      const items = normalizeLines(lines).map((l) => `${itemLabel(l)}${l.unitPrice}×${l.quantity}`);
+      const sum = lines.reduce((n, l) => n + l.quantity * l.unitPrice, 0);
+      return `${dayLabel(date)}${SLOT_LABEL[slot].slice(0, 1)} ${items.join("、")}　${money(sum)}`;
+    });
+  // A text message holds 5,000 characters and a reply 5 messages.
+  const chunks: string[] = [];
+  for (const line of [`${m} 月每日明細`, ...daily]) {
+    const last = chunks.length - 1;
+    if (last >= 0 && chunks[last].length + line.length + 1 <= 5000) chunks[last] += `\n${line}`;
+    else chunks.push(line);
+  }
+  return [summary, ...chunks.slice(0, 4)].map((s) => text(s));
 }
 
 function dayLabel(date: string) {

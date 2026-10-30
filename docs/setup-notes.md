@@ -92,6 +92,7 @@ The workflow runs `npm run db:migrate` (secret `DATABASE_URL`) after the build a
 
 ## Changelog
 
+- 2026-10-30: The LINE bill reply adds a second message, 每日明細: one line per day and meal with items and amount (split at LINE's 5,000-character limit).
 - 2026-10-30: The rich menu grows to two rows (2500×1686) with 上月帳單 and 本月帳單. The bot answers `menu:bill-last` / `menu:bill-this` with the site's quantities and amounts from the unit-price snapshots; `monthlyLines()` takes an optional site and end date. Run `npm run line:richmenu -- --replace` after the deploy.
 - 2026-10-29: CLAUDE.md describes the LINE binding rules (rate limit, rebinding, unfollow) under `src/lib/line/` and lists `docs/brand/` and `src/pic/` in Layout.
 - 2026-10-29: LINE binding hardening. Wrong binding codes count in `login_failures` (username `line:<userId>`, ip `line`): 5 per LINE account or 30 across all within 15 minutes block binding. A LINE account still bound to a deactivated site moves to the new contact when it sends a valid code (it used to fail on the unique `line_user_id`). Blocking the official account sets the new column `line_contacts.unfollowed_at` (migration `0007_tricky_the_hunter`); pushes skip it and the site page shows 已封鎖官方帳號, and unblocking clears it.
