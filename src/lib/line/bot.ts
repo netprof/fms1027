@@ -1,10 +1,10 @@
 // The LINE bot conversation: binding, natural-language orders with a
-// confirmation card, queries, monthly bills. See docs/spec.md (第二期). The AI only parses
+// confirmation card, queries, monthly bills, this week's menu. See docs/spec.md (第二期). The AI only parses
 // (src/lib/line/parse.ts); this file resolves the meal, prices and cutoffs,
 // and every order write goes through src/lib/orders.ts.
-import { and, eq, gt, isNull, sql } from "drizzle-orm";
+import { and, asc, between, eq, gt, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { companies, lineContacts, lineDrafts, siteMealPlans, sites } from "@/db/schema";
+import { companies, lineContacts, lineDrafts, menus, priceTiers, siteMealPlans, sites } from "@/db/schema";
 import {
   KIND_LABEL,
   MEAL_KINDS,
@@ -199,6 +199,8 @@ async function handleMenu(contact: Contact, data: string): Promise<LineMessage[]
       return [text(CUTOFFS)];
     case "menu:query":
       return handleRequest(contact, { intent: "query", date: null, slot: null, lines: [] }, "", new Date());
+    case "menu:week":
+      return weekMenu(contact);
     case "menu:bill-last":
     case "menu:bill-this":
       return bill(contact, data === "menu:bill-this");
@@ -470,6 +472,90 @@ function detailBubble(title: string, range: string, rows: DailyRow[], money: (n:
         line([cell("小計", 13, { weight: "bold" }), cell(money(total), 4, { weight: "bold", align: "end" })]),
       ],
     },
+  };
+}
+
+// This week's menu (from today to Saturday; on Sunday the coming week), one
+// card per service day. Each planned meal shows as many side dishes as the
+// site's fixed price buys (price_tiers.side_dish_count), taken in menu order.
+async function weekMenu(contact: Contact): Promise<LineMessage[]> {
+  const today = taipeiDate();
+  const start = isoWeekday(today) === 7 ? addDays(today, 1) : today;
+  const end = addDays(start, 6 - isoWeekday(start));
+  const [plans, week] = await Promise.all([
+    db
+      .select({ slot: siteMealPlans.slot, unitPrice: siteMealPlans.unitPrice, sides: priceTiers.sideDishCount })
+      .from(siteMealPlans)
+      .innerJoin(priceTiers, eq(priceTiers.price, siteMealPlans.unitPrice))
+      .where(eq(siteMealPlans.siteId, contact.siteId)),
+    db.select().from(menus).where(between(menus.date, start, end)).orderBy(asc(menus.date)),
+  ]);
+  if (plans.length === 0) return [text("你們目前沒有固定訂餐，如需訂餐請來電。")];
+
+  const bubbles: object[] = [];
+  for (let date = start; date <= end; date = addDays(date, 1)) {
+    if (!(await isServiceDay(date))) continue;
+    const meals = MEAL_SLOTS.flatMap((slot) => {
+      const plan = plans.find((p) => p.slot === slot);
+      if (!plan) return [];
+      const menu = week.find((m) => m.date === date && m.slot === slot);
+      return [mealSection(SLOT_LABEL[slot], plan, menu)];
+    });
+    bubbles.push({
+      type: "bubble",
+      size: "kilo",
+      header: {
+        type: "box",
+        layout: "vertical",
+        backgroundColor: "#3f51b5",
+        contents: [
+          { type: "text", text: dayLabel(date), color: "#ffffff", weight: "bold", size: "md" },
+          { type: "text", text: contact.siteLabel, color: "#e8eaf6", size: "xxs", wrap: true },
+        ],
+      },
+      body: { type: "box", layout: "vertical", spacing: "md", contents: meals.flatMap((m, i) => (i ? [{ type: "separator" }, m] : [m])) },
+    });
+  }
+  if (bubbles.length === 0) return [text("本週已沒有供餐日。")];
+  return [{ type: "flex", altText: "本週菜色", contents: { type: "carousel", contents: bubbles } }];
+}
+
+function mealSection(
+  title: string,
+  plan: { unitPrice: number; sides: number },
+  menu: { mainDish: string; sideDishes: string[]; soup: string; bMealItems: string[] } | undefined,
+) {
+  const item = (label: string, value: string) => ({
+    type: "box",
+    layout: "horizontal",
+    spacing: "sm",
+    contents: [
+      { type: "text", text: label, size: "xs", color: "#64748b", flex: 2 },
+      { type: "text", text: value, size: "sm", flex: 7, wrap: true },
+    ],
+  });
+  const head = {
+    type: "text",
+    text: `${title}　${plan.unitPrice} 元・配菜 ${plan.sides} 道`,
+    weight: "bold",
+    size: "sm",
+    color: "#3f51b5",
+  };
+  if (!menu) {
+    return { type: "box", layout: "vertical", spacing: "xs", contents: [head, { type: "text", text: "菜單尚未公布", size: "sm", color: "#94a3b8" }] };
+  }
+  const sides = menu.sideDishes.filter((d) => d.trim()).slice(0, plan.sides);
+  return {
+    type: "box",
+    layout: "vertical",
+    spacing: "xs",
+    contents: [
+      head,
+      item("主菜", menu.mainDish || "—"),
+      item("配菜", sides.join("、") || "—"),
+      item("湯", menu.soup || "—"),
+      ...(menu.bMealItems.length > 0 ? [item("B 餐", menu.bMealItems.join("、"))] : []),
+    ],
   };
 }
 

@@ -1,7 +1,7 @@
 // Creates the bot's rich menu from docs/brand/line-richmenu.png and makes it
 // the default for every user. The buttons send postbacks that
 // src/lib/line/bot.ts answers (menu:help, menu:query, menu:cutoff,
-// menu:bill-last, menu:bill-this).
+// menu:week, menu:bill-last, menu:bill-this).
 //   npm run line:richmenu            add the menu and set it as default
 //   npm run line:richmenu -- --replace   also delete every other rich menu
 // --replace is needed when old menus are linked to individual users: a
@@ -30,7 +30,7 @@ async function call(method: string, url: string, body?: BodyInit, type = "applic
   return text ? JSON.parse(text) : {};
 }
 
-// Top row: three buttons; bottom row: two. Matches docs/brand/line-richmenu.svg.
+// Two rows of three buttons. Matches docs/brand/line-richmenu.svg.
 const rows = [
   [
     { data: "menu:help", label: "我要訂餐" },
@@ -38,6 +38,7 @@ const rows = [
     { data: "menu:cutoff", label: "截止時間" },
   ],
   [
+    { data: "menu:week", label: "本週菜色" },
     { data: "menu:bill-last", label: "上月帳單" },
     { data: "menu:bill-this", label: "本月帳單" },
   ],

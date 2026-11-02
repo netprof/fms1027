@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="2500" height="1686" viewBox="0 0 2500 1686">
-  <!-- LINE rich menu, large size. Top row: three tap areas of 833 px;
-       bottom row: two of 1250 px. The bounds live in scripts/line-richmenu.ts. -->
+  <!-- LINE rich menu, large size: two rows of three tap areas, 833 px wide.
+       The bounds live in scripts/line-richmenu.ts. -->
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#D24A2C"/>
@@ -20,7 +20,8 @@
   <g stroke="#FFFFFF" stroke-opacity="0.25" stroke-width="4">
     <line x1="833" y1="90" x2="833" y2="753"/>
     <line x1="1667" y1="90" x2="1667" y2="753"/>
-    <line x1="1250" y1="933" x2="1250" y2="1596"/>
+    <line x1="833" y1="933" x2="833" y2="1596"/>
+    <line x1="1667" y1="933" x2="1667" y2="1596"/>
   </g>
 
   <!-- 我要訂餐: bento box -->
@@ -76,8 +77,26 @@
   <text class="label" x="2083" y="590" text-anchor="middle">截止時間</text>
   <text class="note" x="2083" y="690" text-anchor="middle">午 11:00・晚 16:00</text>
 
+  <!-- 本週菜色: rice bowl -->
+  <g transform="translate(416 1113)">
+    <circle r="165" fill="#FFFFFF" fill-opacity="0.14"/>
+    <g fill="none" stroke="#FFFFFF" stroke-opacity="0.85" stroke-width="10" stroke-linecap="round">
+      <path d="M-40 -70c-14 -18 14 -30 0 -50"/>
+      <path d="M0 -74c-14 -18 14 -30 0 -50"/>
+      <path d="M40 -70c-14 -18 14 -30 0 -50"/>
+    </g>
+    <path d="M-104 -30h208a104 104 0 0 1 -208 0z" fill="#FFFFFF" transform="translate(0 0)"/>
+    <path d="M-92 -30a92 46 0 0 1 184 0z" fill="#FBEBDD"/>
+    <circle cx="-34" cy="-46" r="16" fill="#E9A23B"/>
+    <path d="M6 -40c6 -22 40 -24 46 0z" fill="#6DA34D"/>
+    <rect x="-40" y="74" width="80" height="18" rx="9" fill="#FFFFFF"/>
+    <rect x="-72" y="2" width="144" height="16" rx="8" fill="#C8452C"/>
+  </g>
+  <text class="label" x="416" y="1433" text-anchor="middle">本週菜色</text>
+  <text class="note" x="416" y="1533" text-anchor="middle">依你們的價位顯示</text>
+
   <!-- 上月帳單: receipt -->
-  <g transform="translate(625 1113)">
+  <g transform="translate(1250 1113)">
     <circle r="165" fill="#FFFFFF" fill-opacity="0.14"/>
     <path d="M-80 -112h160v224l-27 -18 -26 18 -27 -18 -27 18 -26 -18 -27 18z" fill="#FFFFFF"/>
     <g stroke="#E3C9B6" stroke-width="12" stroke-linecap="round">
@@ -87,11 +106,11 @@
     </g>
     <text x="0" y="78" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="64" fill="#C8452C">$</text>
   </g>
-  <text class="label" x="625" y="1433" text-anchor="middle">上月帳單</text>
-  <text class="note" x="625" y="1533" text-anchor="middle">上個月的份數與金額</text>
+  <text class="label" x="1250" y="1433" text-anchor="middle">上月帳單</text>
+  <text class="note" x="1250" y="1533" text-anchor="middle">上個月的份數與金額</text>
 
   <!-- 本月帳單: calendar -->
-  <g transform="translate(1875 1113)">
+  <g transform="translate(2083 1113)">
     <circle r="165" fill="#FFFFFF" fill-opacity="0.14"/>
     <rect x="-104" y="-88" width="208" height="192" rx="22" fill="#FFFFFF"/>
     <path d="M-104 -50v-16a22 22 0 0 1 22 -22h164a22 22 0 0 1 22 22v16z" fill="#F2C14E"/>
@@ -105,6 +124,6 @@
     </g>
     <rect x="34" y="28" width="36" height="30" rx="6" fill="#C8452C"/>
   </g>
-  <text class="label" x="1875" y="1433" text-anchor="middle">本月帳單</text>
-  <text class="note" x="1875" y="1533" text-anchor="middle">本月截至今天的金額</text>
+  <text class="label" x="2083" y="1433" text-anchor="middle">本月帳單</text>
+  <text class="note" x="2083" y="1533" text-anchor="middle">本月截至今天的金額</text>
 </svg>
