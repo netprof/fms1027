@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><link rel="stylesheet" href="common.css">
+<style>
+  body { width: 1800px; height: 1040px; position: relative; --c: var(--admin); }
+  h2.sec { font-size: 24px; color: var(--admin); margin: 0 0 14px; display: flex; align-items: center; gap: 12px; }
+  h2.sec .tag { font-size: 15px; }
+  .chain { display: grid; grid-template-columns: repeat(6, 1fr); gap: 34px; position: relative; margin-bottom: 34px; }
+  .node { position: relative; padding: 16px 16px 14px; border: 2px solid var(--admin); background: #fff; border-radius: 14px; }
+  .node:not(:last-child)::after { content: "▶"; position: absolute; right: -28px; top: 44px; color: var(--muted); font-size: 20px; }
+  .node .num { width: 34px; height: 34px; border-radius: 50%; background: var(--admin); color: #fff; display: grid; place-items: center; font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+  .node b { font-size: 20px; display: block; }
+  .node code { font-family: Consolas, monospace; font-size: 13px; color: var(--muted); display: block; margin: 2px 0 6px; }
+  .node p { font-size: 15px; line-height: 1.5; color: var(--ink); }
+  .bottom { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 28px; }
+  .box { padding: 18px 22px; }
+  .box h3 { font-size: 21px; margin-bottom: 10px; color: var(--c); }
+  .box ul { list-style: none; }
+  .box li { font-size: 17px; line-height: 1.45; padding: 7px 0 7px 22px; position: relative; border-bottom: 1px solid #eef2f7; }
+  .box li::before { content: ""; position: absolute; left: 2px; top: 15px; width: 9px; height: 9px; border-radius: 50%; background: var(--c); }
+  .box li small { display: block; font-size: 14px; color: var(--muted); }
+</style></head>
+<body>
+<header><h1><span>永發便當</span>管理者設定與維護流程</h1><p>角色：管理者　介面：後台側邊選單（管理者另擁有員工的所有功能）</p></header>
+
+<h2 class="sec"><span class="tag" style="background:var(--admin)">導入</span>第一次建立基本資料（依序設定，後面的設定會用到前面的資料）</h2>
+<div class="chain">
+  <div class="node"><div class="num">1</div><b>帳號</b><code>/admin/employees</code><p>建立員工與司機，設定角色（管理者／員工）與登入密碼。</p></div>
+  <div class="node"><div class="num">2</div><b>價位</b><code>/admin/prices</code><p>價位對應配菜道數，例如 70 元 6 道、60 元 5 道、50 元 4 道。</p></div>
+  <div class="node"><div class="num">3</div><b>路線</b><code>/admin/routes</code><p>午、晚餐路線與預設司機；之後排入廠區的配送順序。</p></div>
+  <div class="node"><div class="num">4</div><b>客戶 → 公司</b><code>/admin/companies</code><p>公司是月結帳務對象，底下建立各廠區。</p></div>
+  <div class="node"><div class="num">5</div><b>廠區設定</b><code>/admin/sites/[id]</code><p>訂哪些餐次、路線、固定單價、各餐別預設份數、每天自動產生訂單的星期。</p></div>
+  <div class="node"><div class="num">6</div><b>LINE 聯絡人</b><code>廠區設定頁下方</code><p>新增聯絡人取得 6 位數綁定碼，交給客戶在 LINE 綁定。</p></div>
+</div>
+
+<div class="bottom">
+  <section class="card box">
+    <h3>每週維護</h3>
+    <ul>
+      <li>菜單<small>逐日輸入午、晚餐主菜、六道配菜、湯、B 餐；客戶在 LINE「本週菜色」看到</small></li>
+      <li>休假日<small>停供日不產生訂單，也不能下單</small></li>
+      <li>代班司機<small>在路線設定指定某天由誰代班</small></li>
+    </ul>
+  </section>
+  <section class="card box" style="--c: var(--staff)">
+    <h3>每天（與員工相同）</h3>
+    <ul>
+      <li>電話改單<small>截止後改單會標藍並推播 LINE</small></li>
+      <li>每日出餐單 Excel</li>
+      <li>查看任一司機的路線</li>
+      <li>LINE 聯絡人管理<small>重新產生綁定碼、解除綁定、查看封鎖狀態</small></li>
+    </ul>
+  </section>
+  <section class="card box" style="--c: var(--brand)">
+    <h3>每月結帳</h3>
+    <ul>
+      <li>報表 → 月結對帳表<small>選月份先預覽各公司份數與金額，再下載 Excel</small></li>
+      <li>工作表：公司彙總、廠區彙總、逐日明細</li>
+      <li>金額以訂單明細的單價快照計算<small>與客戶在 LINE 查到的帳單一致</small></li>
+    </ul>
+  </section>
+</div>
+
+<footer>永發便當團膳管理系統 · 2026-11 · 依 docs/spec.md 與後台選單整理</footer>
+</body></html>

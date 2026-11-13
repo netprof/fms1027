@@ -92,6 +92,7 @@ The workflow runs `npm run db:migrate` (secret `DATABASE_URL`) after the build a
 
 ## Changelog
 
+- 2026-11-04: Role and flow diagrams `src/pic/07.png`–`10.png` (overview, customer LINE, staff/driver day, admin setup), drawn as HTML in `docs/diagrams/` and rendered with headless Chrome by `docs/diagrams/render.sh`.
 - 2026-11-02: Rich menu button 本週菜色 (`menu:week`, bottom row is now three buttons): a Flex card per service day to Saturday showing the site's planned meals, with the first N side dishes where N is `price_tiers.side_dish_count` for the site's fixed price. Run `npm run line:richmenu -- --replace` after the deploy.
 - 2026-10-30: 每日明細 is now a Flex table (日期/餐/內容/金額 with a subtotal), one card per half month in a carousel; checked with LINE's `/message/validate/reply`.
 - 2026-10-30: The LINE bill reply adds a second message, 每日明細: one line per day and meal with items and amount (split at LINE's 5,000-character limit).

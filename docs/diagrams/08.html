@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><link rel="stylesheet" href="common.css">
+<style>
+  body { width: 1800px; height: 1010px; position: relative; --c: var(--line-green); }
+  .cols { display: grid; grid-template-columns: 420px 1fr 470px; gap: 36px; }
+  .col h2 { font-size: 22px; margin-bottom: 14px; display: flex; align-items: center; gap: 10px; }
+  .col h2 .n { width: 34px; height: 34px; border-radius: 50%; background: var(--c); color: #fff; display: grid; place-items: center; font-size: 18px; }
+  .row { display: flex; gap: 14px; align-items: stretch; }
+  .row > * { flex: 1; }
+  .branch { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+  .no { --c: #b91c1c; }
+  .warn { --c: var(--kitchen); }
+  .gray { --c: var(--sys); }
+  .yes { color: var(--line-green); font-weight: 700; }
+  .x { color: #b91c1c; font-weight: 700; }
+  .menu { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .menu .step { font-size: 17px; }
+  .rules { margin-top: 18px; padding: 16px 20px; font-size: 16px; line-height: 1.6; }
+  .rules h3 { font-size: 18px; margin-bottom: 4px; color: var(--line-green); }
+</style></head>
+<body>
+<header><h1><span>永發便當</span>客戶 LINE 訂餐流程</h1><p>角色：廠區聯絡人　介面：LINE 官方帳號</p></header>
+
+<div class="cols">
+  <!-- 1. 綁定 -->
+  <section class="col">
+    <h2><span class="n">1</span>第一次使用：綁定</h2>
+    <div class="step gray"><b>管理者</b>在「廠區設定」新增聯絡人<small>系統產生 6 位數綁定碼，24 小時內有效</small></div>
+    <div class="down">▼ 綁定碼交給客戶</div>
+    <div class="step">客戶加 LINE 好友，傳送綁定碼</div>
+    <div class="down">▼</div>
+    <div class="decision">綁定碼正確且未過期？</div>
+    <div class="down">▼</div>
+    <div class="branch">
+      <div class="step"><span class="yes">是</span>　綁定完成<small>回覆所屬廠區與使用說明；舊廠區已停用則自動改綁</small></div>
+      <div class="step no"><span class="x">否</span>　請索取新碼<small>15 分鐘內錯 5 次就暫停綁定</small></div>
+    </div>
+    <div class="rules card">
+      <h3>封鎖與解除</h3>
+      客戶封鎖官方帳號：保留綁定、停止推播，後台顯示「已封鎖官方帳號」。<br>解除封鎖後自動恢復。
+    </div>
+  </section>
+
+  <!-- 2. 訂餐 -->
+  <section class="col">
+    <h2><span class="n">2</span>傳訊息訂餐、改單、取消</h2>
+    <div class="step">客戶傳訊息<small>例：「明天午餐葷 12、素 3」「今天素的改成 0」「週五取消」</small></div>
+    <div class="down">▼</div>
+    <div class="step gray"><b>AI 解析</b>（Claude Haiku）<small>只讀出日期、餐次、餐別、價位、份數；讀不懂就請客戶換個說法</small></div>
+    <div class="down">▼</div>
+    <div class="step gray"><b>系統判斷</b><small>沒講日期 → 下一個還沒截止的餐次；沒講葷素 → 葷；沒講價位 → 廠區固定單價。份數一律是「設定成」</small></div>
+    <div class="down">▼</div>
+    <div class="decision">已過截止時間？（午 11:00、晚 16:00、B 餐前一天 16:00）</div>
+    <div class="down">▼</div>
+    <div class="branch">
+      <div>
+        <div class="step"><span class="yes">未截止</span>　回覆確認卡<small>逐行顯示「原份數 → 新份數」與截止時間</small></div>
+        <div class="down">▼</div>
+        <div class="row">
+          <div class="step solid"><b>〔確認〕</b><small>寫入訂單，看板即時更新</small></div>
+          <div class="step no"><b>〔取消〕</b><small>訂單不變</small></div>
+        </div>
+        <p class="note" style="margin-top:8px">確認卡 30 分鐘內有效，只有最新一張有效；期間訂單被別人改過會請客戶重傳。</p>
+      </div>
+      <div class="step warn"><span class="x">已截止</span>　回覆「已截止，請來電」<small>不寫入任何資料。客戶打電話，由員工在後台代改</small></div>
+    </div>
+  </section>
+
+  <!-- 3. 選單 -->
+  <section class="col">
+    <h2><span class="n">3</span>圖文選單</h2>
+    <div class="menu">
+      <div class="step"><b>我要訂餐</b><small>顯示訂餐範例</small></div>
+      <div class="step"><b>查詢訂單</b><small>下一個可訂餐次的內容與截止時間</small></div>
+      <div class="step"><b>截止時間</b><small>午、晚、B 餐截止說明</small></div>
+      <div class="step"><b>本週菜色</b><small>每天一張卡片；配菜道數依廠區價位（70 元 6 道、60 元 5 道）</small></div>
+      <div class="step"><b>上月帳單</b><small>份數與金額彙總＋每日明細表格</small></div>
+      <div class="step"><b>本月帳單</b><small>本月 1 日到今天</small></div>
+    </div>
+    <p class="note" style="margin-top:10px">尚未綁定時按任何按鈕，都會先請客戶輸入綁定碼。</p>
+
+    <h2 style="margin-top:28px"><span class="n">4</span>收到通知</h2>
+    <div class="step gray"><b>員工</b>在截止後代客戶改單</div>
+    <div class="down">▼</div>
+    <div class="step">LINE 推播給該廠區所有聯絡人<small>已封鎖官方帳號的聯絡人不推播</small></div>
+  </section>
+</div>
+
+<footer>永發便當團膳管理系統 · 2026-11 · 依 docs/spec.md 第二期與 src/lib/line/bot.ts 整理</footer>
+</body></html>

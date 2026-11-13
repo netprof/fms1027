@@ -48,7 +48,7 @@ Product spec (Traditional Chinese): [docs/spec.md](docs/spec.md)
 - `"use server"` files may only export async functions; put shared constants elsewhere (e.g. `src/lib/meals.ts`)
 - `scripts/`: dev scripts run with `tsx`
 - `docs/brand/`: LINE bot avatar and rich-menu image (SVG source + rendered PNG). The avatar is uploaded by hand in LINE Official Account Manager; the API can't set it
-- `src/pic/`: reference screenshots from the requirements and LINE testing (cited in `docs/spec.md`)
+- `src/pic/`: reference screenshots from the requirements and LINE testing (01–06), and role/flow diagrams (07–10) rendered from `docs/diagrams/*.html` with `bash docs/diagrams/render.sh <name> <w> <h>` (cited in `docs/spec.md`)
 - `drizzle/`: generated migrations
 
 ## Deployment (Azure)
