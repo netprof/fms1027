@@ -136,10 +136,15 @@ export type MonthlyRow = {
 };
 
 // "2026-10" → every order line from 10/1 up to (not including) 11/1.
-export async function monthlyLines(month: string): Promise<MonthlyRow[]> {
+// Optionally one site only, and only up to a date (inclusive).
+export async function monthlyLines(
+  month: string,
+  only: { siteId?: number; through?: string } = {},
+): Promise<MonthlyRow[]> {
   const start = `${month}-01`;
   // 31 days after the 1st always lands in the next month.
-  const end = `${addDays(start, 31).slice(0, 7)}-01`;
+  const next = `${addDays(start, 31).slice(0, 7)}-01`;
+  const end = only.through && only.through < next ? addDays(only.through, 1) : next;
   const rows = await db
     .select({
       companyName: companies.name,
@@ -156,7 +161,13 @@ export async function monthlyLines(month: string): Promise<MonthlyRow[]> {
     .innerJoin(orders, eq(orders.id, orderLines.orderId))
     .innerJoin(sites, eq(sites.id, orders.siteId))
     .innerJoin(companies, eq(companies.id, sites.companyId))
-    .where(and(gte(orders.date, start), lt(orders.date, end)))
+    .where(
+      and(
+        gte(orders.date, start),
+        lt(orders.date, end),
+        only.siteId === undefined ? undefined : eq(orders.siteId, only.siteId),
+      ),
+    )
     .orderBy(asc(companies.name), asc(sites.id), asc(orders.date), asc(orders.slot));
   return rows.map((r) => ({
     companyName: r.companyName,

@@ -55,7 +55,7 @@ export async function unbindLineContact(contactId: number) {
   return adminAction(async () => {
     await db
       .update(lineContacts)
-      .set({ lineUserId: null, displayName: null, boundAt: null, updatedAt: sql`now()` })
+      .set({ lineUserId: null, displayName: null, boundAt: null, unfollowedAt: null, updatedAt: sql`now()` })
       .where(eq(lineContacts.id, id(contactId)));
     return "已解除綁定";
   });

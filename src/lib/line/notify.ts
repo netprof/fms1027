@@ -1,6 +1,6 @@
 // Push to a site's bound LINE contacts when staff change its order after
 // cutoff (phone-in changes), the only push the bot sends. See docs/spec.md.
-import { and, eq, isNotNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { lineContacts } from "@/db/schema";
 import { KIND_LABEL, SLOT_LABEL, isoWeekday } from "../meals";
@@ -20,7 +20,9 @@ export async function notifyStaffChange(key: OrderKey, after: OrderLine[]) {
   const contacts = await db
     .select({ userId: lineContacts.lineUserId })
     .from(lineContacts)
-    .where(and(eq(lineContacts.siteId, key.siteId), isNotNull(lineContacts.lineUserId)));
+    .where(
+      and(eq(lineContacts.siteId, key.siteId), isNotNull(lineContacts.lineUserId), isNull(lineContacts.unfollowedAt)),
+    );
   if (contacts.length === 0) return;
 
   const [, m, d] = key.date.split("-").map(Number);

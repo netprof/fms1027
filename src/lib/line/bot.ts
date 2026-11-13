@@ -1,12 +1,13 @@
 // The LINE bot conversation: binding, natural-language orders with a
-// confirmation card, queries. See docs/spec.md (第二期). The AI only parses
+// confirmation card, queries, monthly bills, this week's menu. See docs/spec.md (第二期). The AI only parses
 // (src/lib/line/parse.ts); this file resolves the meal, prices and cutoffs,
 // and every order write goes through src/lib/orders.ts.
-import { and, eq, gt, isNull, sql } from "drizzle-orm";
+import { and, asc, between, eq, gt, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { companies, lineContacts, lineDrafts, siteMealPlans, sites } from "@/db/schema";
+import { companies, lineContacts, lineDrafts, menus, priceTiers, siteMealPlans, sites } from "@/db/schema";
 import {
   KIND_LABEL,
+  MEAL_KINDS,
   MEAL_SLOTS,
   SLOT_LABEL,
   addDays,
@@ -28,6 +29,8 @@ import {
   type OrderKey,
   type OrderLine,
 } from "../orders";
+import { monthlyLines } from "../reports";
+import { LOCKOUT_MINUTES, clearLoginFailures, loginBlocked, recordLoginFailure } from "../auth";
 import { getDisplayName, reply, text, type LineMessage } from "./api";
 import { parseRequest, type ParsedRequest } from "./parse";
 
@@ -49,12 +52,26 @@ const WEEKDAY = ["", "一", "二", "三", "四", "五", "六", "日"];
 const HELP =
   "請直接傳訊息訂餐，例如：\n・明天午餐葷 12、素 3\n・今天素的改成 0\n・週五取消\n・今天訂了什麼？\n沒講日期時，會幫你訂下一個還沒截止的餐次。";
 
+const CUTOFFS =
+  "訂餐截止時間：\n・午餐：當日 11:00\n・晚餐：當日 16:00\n・B 餐：前一天 16:00\n截止後無法用 LINE 修改，請來電由專人處理。";
+
+const BIND_FIRST = "請先輸入 6 位數綁定碼完成綁定。";
+
 type Contact = { id: number; siteId: number; siteLabel: string };
 
 export async function handleEvent(event: LineEvent) {
   const userId = event.source?.type === "user" ? event.source.userId : undefined;
+  if (!userId) return;
+  // Blocking the official account keeps the binding; pushes skip it until
+  // the customer unblocks (follow).
+  if (event.type === "unfollow" || event.type === "follow") {
+    await db
+      .update(lineContacts)
+      .set({ unfollowedAt: event.type === "unfollow" ? sql`now()` : null })
+      .where(eq(lineContacts.lineUserId, userId));
+  }
   const token = event.replyToken;
-  if (!userId || !token) return;
+  if (!token) return;
 
   const contact = await findContact(userId);
   const answer = (messages: LineMessage[]) => reply(token, messages);
@@ -68,14 +85,17 @@ export async function handleEvent(event: LineEvent) {
       ),
     ]);
   }
-  if (event.type === "postback" && contact && event.postback) {
-    return answer(await handlePostback(contact, event.postback.data));
+  if (event.type === "postback" && event.postback) {
+    const { data } = event.postback;
+    if (data.startsWith("menu:")) return answer(contact ? await handleMenu(contact, data) : [text(BIND_FIRST)]);
+    if (contact) return answer(await handlePostback(contact, data));
+    return;
   }
   if (event.type !== "message") return;
 
   const body = event.message?.type === "text" ? (event.message.text ?? "").trim() : "";
   if (!contact) {
-    return answer([text(/^\d{6}$/.test(body) ? await bind(userId, body) : "請先輸入 6 位數綁定碼完成綁定。")]);
+    return answer([text(/^\d{6}$/.test(body) ? await bind(userId, body) : BIND_FIRST)]);
   }
   if (!body) return answer([text(HELP)]);
   if (body.length > MAX_MESSAGE) return answer([text("訊息太長了，請簡短說明要訂的內容。")]);
@@ -97,27 +117,54 @@ async function findContact(userId: string): Promise<Contact | null> {
   return row ? { id: row.id, siteId: row.siteId, siteLabel: `${row.companyName}${row.siteName}` } : null;
 }
 
+// Wrong codes go through the login rate limit (src/lib/auth.ts): 5 per LINE
+// account, and 30 across all LINE accounts, within 15 minutes.
+const BIND_FAILURES = "line";
+
 async function bind(userId: string, code: string): Promise<string> {
+  const failKey = `line:${userId}`;
+  if (await loginBlocked(failKey, BIND_FAILURES)) {
+    return `綁定碼錯誤次數太多，請 ${LOCKOUT_MINUTES} 分鐘後再試，或來電由專人處理。`;
+  }
   const displayName = await getDisplayName(userId);
-  const [bound] = await db
-    .update(lineContacts)
-    .set({
-      lineUserId: userId,
-      displayName,
-      boundAt: sql`now()`,
-      bindCode: null,
-      bindCodeExpiresAt: null,
-      updatedAt: sql`now()`,
-    })
-    .where(
-      and(
-        eq(lineContacts.bindCode, code),
-        gt(lineContacts.bindCodeExpiresAt, sql`now()`),
-        isNull(lineContacts.lineUserId),
-      ),
-    )
-    .returning({ siteId: lineContacts.siteId });
-  if (!bound) return "綁定碼不正確或已過期，請向我們索取新的綁定碼。";
+  const bound = await db.transaction(async (tx) => {
+    const [target] = await tx
+      .select({ id: lineContacts.id })
+      .from(lineContacts)
+      .where(
+        and(
+          eq(lineContacts.bindCode, code),
+          gt(lineContacts.bindCodeExpiresAt, sql`now()`),
+          isNull(lineContacts.lineUserId),
+        ),
+      )
+      .for("update");
+    if (!target) return false;
+    // Still bound here means the old site was deactivated (findContact skips
+    // it). Staff issued the new code, so the account moves to that contact.
+    await tx
+      .update(lineContacts)
+      .set({ lineUserId: null, displayName: null, boundAt: null, unfollowedAt: null, updatedAt: sql`now()` })
+      .where(eq(lineContacts.lineUserId, userId));
+    await tx
+      .update(lineContacts)
+      .set({
+        lineUserId: userId,
+        displayName,
+        boundAt: sql`now()`,
+        bindCode: null,
+        bindCodeExpiresAt: null,
+        unfollowedAt: null,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(lineContacts.id, target.id));
+    return true;
+  });
+  if (!bound) {
+    await recordLoginFailure(failKey, BIND_FAILURES);
+    return "綁定碼不正確或已過期，請向我們索取新的綁定碼。";
+  }
+  await clearLoginFailures(failKey);
   const contact = await findContact(userId);
   return `綁定完成！你是 ${contact?.siteLabel ?? ""} 的訂餐聯絡人。\n\n${HELP}`;
 }
@@ -139,7 +186,30 @@ async function handleText(contact: Contact, body: string): Promise<LineMessage[]
   if (!parsed || parsed.intent === "unclear" || (parsed.intent === "order" && parsed.lines.length === 0)) {
     return [text(`抱歉，我看不太懂，可以換個說法嗎？\n\n${HELP}`)];
   }
+  return handleRequest(contact, parsed, body, now);
+}
 
+// Rich menu buttons (scripts/line-richmenu.ts). 查詢訂單 skips the model:
+// it is a query for the next open meal.
+async function handleMenu(contact: Contact, data: string): Promise<LineMessage[]> {
+  switch (data) {
+    case "menu:help":
+      return [text(HELP)];
+    case "menu:cutoff":
+      return [text(CUTOFFS)];
+    case "menu:query":
+      return handleRequest(contact, { intent: "query", date: null, slot: null, lines: [] }, "", new Date());
+    case "menu:week":
+      return weekMenu(contact);
+    case "menu:bill-last":
+    case "menu:bill-this":
+      return bill(contact, data === "menu:bill-this");
+    default:
+      return [];
+  }
+}
+
+async function handleRequest(contact: Contact, parsed: ParsedRequest, body: string, now: Date): Promise<LineMessage[]> {
   const target = await resolveMeal(contact.siteId, parsed, now);
   if ("error" in target) return [text(target.error)];
   const { key, planPrice, defaulted } = target;
@@ -279,6 +349,214 @@ async function handlePostback(contact: Contact, data: string): Promise<LineMessa
     return [text(result.error)];
   }
   return [text(`已確認 ✓\n${mealTitle(key)}\n${describe(draft.lines as OrderLine[])}`)];
+}
+
+// The site's bill for last month, or this month up to today. Same order
+// lines and unit-price snapshots as the monthly statement (src/lib/reports.ts).
+async function bill(contact: Contact, current: boolean): Promise<LineMessage[]> {
+  const today = taipeiDate();
+  const thisMonth = today.slice(0, 7);
+  const month = current ? thisMonth : addDays(`${thisMonth}-01`, -1).slice(0, 7);
+  const rows = await monthlyLines(month, { siteId: contact.siteId, through: current ? today : undefined });
+  const [, m] = month.split("-").map(Number);
+  const [, , d] = today.split("-").map(Number);
+  const title = `${contact.siteLabel}\n${m} 月帳單${current ? `（截至 ${m}/${d}）` : ""}`;
+
+  const totals = new Map<string, { slot: MealSlot; line: OrderLine }>();
+  for (const r of rows) {
+    if (r.line.quantity === 0) continue;
+    const k = `${r.slot}:${r.line.kind}:${r.line.unitPrice}:${r.line.label ?? ""}`;
+    const t = totals.get(k) ?? { slot: r.slot, line: { ...r.line, quantity: 0 } };
+    t.line.quantity += r.line.quantity;
+    totals.set(k, t);
+  }
+  if (totals.size === 0) return [text(`${title}\n\n${m} 月沒有訂餐紀錄。`)];
+
+  const money = (n: number) => n.toLocaleString("en-US");
+  const sections = MEAL_SLOTS.flatMap((slot) => {
+    const lines = [...totals.values()]
+      .filter((t) => t.slot === slot)
+      .map((t) => t.line)
+      .sort((a, b) => MEAL_KINDS.indexOf(a.kind) - MEAL_KINDS.indexOf(b.kind) || b.unitPrice - a.unitPrice);
+    if (lines.length === 0) return [];
+    const items = lines.map((l) => `${itemLabel(l)} ${l.unitPrice}元 × ${l.quantity} = ${money(l.unitPrice * l.quantity)}`);
+    return [`【${SLOT_LABEL[slot]}】\n${items.join("\n")}`];
+  });
+  const all = [...totals.values()].map((t) => t.line);
+  const quantity = all.reduce((n, l) => n + l.quantity, 0);
+  const amount = all.reduce((n, l) => n + l.quantity * l.unitPrice, 0);
+  const summary = `${title}\n\n${sections.join("\n\n")}\n\n合計 ${money(quantity)} 份，${money(amount)} 元\n實際請款以月結對帳單為準。`;
+
+  // One line per day and meal, in date order (monthlyLines sorts by date).
+  const meals = new Map<string, { date: string; slot: MealSlot; lines: OrderLine[] }>();
+  for (const r of rows) {
+    if (r.line.quantity === 0) continue;
+    const k = `${r.date}:${r.slot}`;
+    const meal = meals.get(k) ?? { date: r.date, slot: r.slot, lines: [] };
+    meal.lines.push(r.line);
+    meals.set(k, meal);
+  }
+  const daily = [...meals.values()]
+    .sort((a, b) => a.date.localeCompare(b.date) || MEAL_SLOTS.indexOf(a.slot) - MEAL_SLOTS.indexOf(b.slot))
+    .map(({ date, slot, lines }) => ({
+      date,
+      slot,
+      items: normalizeLines(lines).map((l) => `${itemLabel(l)} ${l.unitPrice}×${l.quantity}`),
+      amount: lines.reduce((n, l) => n + l.quantity * l.unitPrice, 0),
+    }));
+  // A table card per half month, swiped as a carousel; one bubble for the
+  // whole month would pass LINE's size limit for busy sites.
+  const halves = [daily.filter((r) => r.date.slice(8) <= "15"), daily.filter((r) => r.date.slice(8) > "15")];
+  const bubbles = halves
+    .filter((h) => h.length > 0)
+    .map((h) => detailBubble(`${m} 月每日明細`, `${dayLabel(h[0].date)} – ${dayLabel(h.at(-1)!.date)}`, h, money));
+  return [
+    text(summary),
+    { type: "flex", altText: `${m} 月每日明細`, contents: { type: "carousel", contents: bubbles } },
+  ];
+}
+
+type DailyRow = { date: string; slot: MealSlot; items: string[]; amount: number };
+
+const cell = (value: string, flex: number, extra: Record<string, unknown> = {}) => ({
+  type: "text",
+  text: value,
+  size: "xs",
+  flex,
+  wrap: true,
+  ...extra,
+});
+
+function detailBubble(title: string, range: string, rows: DailyRow[], money: (n: number) => string) {
+  const line = (cells: object[], extra: Record<string, unknown> = {}) => ({
+    type: "box",
+    layout: "horizontal",
+    spacing: "sm",
+    paddingAll: "6px",
+    contents: cells,
+    ...extra,
+  });
+  const head = { color: "#64748b", weight: "bold" };
+  const total = rows.reduce((n, r) => n + r.amount, 0);
+  return {
+    type: "bubble",
+    size: "giga",
+    header: {
+      type: "box",
+      layout: "vertical",
+      backgroundColor: "#3f51b5",
+      contents: [
+        { type: "text", text: title, color: "#ffffff", weight: "bold", size: "md" },
+        { type: "text", text: range, color: "#e8eaf6", size: "xs" },
+      ],
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      paddingAll: "8px",
+      contents: [
+        line([cell("日期", 4, head), cell("餐", 2, head), cell("內容", 7, head), cell("金額", 4, { ...head, align: "end" })]),
+        { type: "separator" },
+        ...rows.map((r, i) =>
+          line(
+            [
+              cell(dayLabel(r.date), 4),
+              cell(SLOT_LABEL[r.slot], 2),
+              cell(r.items.join("\n"), 7),
+              cell(money(r.amount), 4, { align: "end" }),
+            ],
+            i % 2 ? { backgroundColor: "#f1f5f9" } : {},
+          ),
+        ),
+        { type: "separator" },
+        line([cell("小計", 13, { weight: "bold" }), cell(money(total), 4, { weight: "bold", align: "end" })]),
+      ],
+    },
+  };
+}
+
+// This week's menu (from today to Saturday; on Sunday the coming week), one
+// card per service day. Each planned meal shows as many side dishes as the
+// site's fixed price buys (price_tiers.side_dish_count), taken in menu order.
+async function weekMenu(contact: Contact): Promise<LineMessage[]> {
+  const today = taipeiDate();
+  const start = isoWeekday(today) === 7 ? addDays(today, 1) : today;
+  const end = addDays(start, 6 - isoWeekday(start));
+  const [plans, week] = await Promise.all([
+    db
+      .select({ slot: siteMealPlans.slot, unitPrice: siteMealPlans.unitPrice, sides: priceTiers.sideDishCount })
+      .from(siteMealPlans)
+      .innerJoin(priceTiers, eq(priceTiers.price, siteMealPlans.unitPrice))
+      .where(eq(siteMealPlans.siteId, contact.siteId)),
+    db.select().from(menus).where(between(menus.date, start, end)).orderBy(asc(menus.date)),
+  ]);
+  if (plans.length === 0) return [text("你們目前沒有固定訂餐，如需訂餐請來電。")];
+
+  const bubbles: object[] = [];
+  for (let date = start; date <= end; date = addDays(date, 1)) {
+    if (!(await isServiceDay(date))) continue;
+    const meals = MEAL_SLOTS.flatMap((slot) => {
+      const plan = plans.find((p) => p.slot === slot);
+      if (!plan) return [];
+      const menu = week.find((m) => m.date === date && m.slot === slot);
+      return [mealSection(SLOT_LABEL[slot], plan, menu)];
+    });
+    bubbles.push({
+      type: "bubble",
+      size: "kilo",
+      header: {
+        type: "box",
+        layout: "vertical",
+        backgroundColor: "#3f51b5",
+        contents: [
+          { type: "text", text: dayLabel(date), color: "#ffffff", weight: "bold", size: "md" },
+          { type: "text", text: contact.siteLabel, color: "#e8eaf6", size: "xxs", wrap: true },
+        ],
+      },
+      body: { type: "box", layout: "vertical", spacing: "md", contents: meals.flatMap((m, i) => (i ? [{ type: "separator" }, m] : [m])) },
+    });
+  }
+  if (bubbles.length === 0) return [text("本週已沒有供餐日。")];
+  return [{ type: "flex", altText: "本週菜色", contents: { type: "carousel", contents: bubbles } }];
+}
+
+function mealSection(
+  title: string,
+  plan: { unitPrice: number; sides: number },
+  menu: { mainDish: string; sideDishes: string[]; soup: string; bMealItems: string[] } | undefined,
+) {
+  const item = (label: string, value: string) => ({
+    type: "box",
+    layout: "horizontal",
+    spacing: "sm",
+    contents: [
+      { type: "text", text: label, size: "xs", color: "#64748b", flex: 2 },
+      { type: "text", text: value, size: "sm", flex: 7, wrap: true },
+    ],
+  });
+  const head = {
+    type: "text",
+    text: `${title}　${plan.unitPrice} 元・配菜 ${plan.sides} 道`,
+    weight: "bold",
+    size: "sm",
+    color: "#3f51b5",
+  };
+  if (!menu) {
+    return { type: "box", layout: "vertical", spacing: "xs", contents: [head, { type: "text", text: "菜單尚未公布", size: "sm", color: "#94a3b8" }] };
+  }
+  const sides = menu.sideDishes.filter((d) => d.trim()).slice(0, plan.sides);
+  return {
+    type: "box",
+    layout: "vertical",
+    spacing: "xs",
+    contents: [
+      head,
+      item("主菜", menu.mainDish || "—"),
+      item("配菜", sides.join("、") || "—"),
+      item("湯", menu.soup || "—"),
+      ...(menu.bMealItems.length > 0 ? [item("B 餐", menu.bMealItems.join("、"))] : []),
+    ],
+  };
 }
 
 function dayLabel(date: string) {

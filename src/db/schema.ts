@@ -100,7 +100,8 @@ export const sites = pgTable("sites", {
 
 // A site's LINE contacts (phase 2). Staff create one and hand over bindCode;
 // the customer sends it to the bot, which fills lineUserId. One LINE account
-// belongs to one site.
+// belongs to one site. unfollowedAt is set while the customer has blocked the
+// official account; the binding stays so unblocking resumes it.
 export const lineContacts = pgTable("line_contacts", {
   id: serial("id").primaryKey(),
   siteId: integer("site_id")
@@ -112,6 +113,7 @@ export const lineContacts = pgTable("line_contacts", {
   bindCode: text("bind_code").unique(),
   bindCodeExpiresAt: timestamp("bind_code_expires_at", { withTimezone: true }),
   boundAt: timestamp("bound_at", { withTimezone: true }),
+  unfollowedAt: timestamp("unfollowed_at", { withTimezone: true }),
   ...timestamps,
 });
 

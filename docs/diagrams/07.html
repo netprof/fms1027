@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><link rel="stylesheet" href="common.css">
+<style>
+  body { width: 1800px; height: 1060px; position: relative; }
+  .roles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
+  .role { padding: 0 0 18px; overflow: hidden; }
+  .role .head { background: var(--c); color: #fff; padding: 18px 22px 14px; }
+  .role .head h2 { font-size: 28px; letter-spacing: 2px; }
+  .role .head p { font-size: 16px; opacity: .9; margin-top: 4px; }
+  .role .where { margin: 14px 22px 6px; font-size: 15px; color: var(--muted); }
+  .role .where code { font-family: Consolas, monospace; color: var(--ink); background: #f1f5f9; padding: 1px 6px; border-radius: 4px; }
+  .role ul { list-style: none; margin: 0 22px; }
+  .role li { font-size: 18px; line-height: 1.4; padding: 9px 0 9px 26px; border-bottom: 1px solid #eef2f7; position: relative; }
+  .role li::before { content: ""; position: absolute; left: 4px; top: 17px; width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+  .role li small { display: block; font-size: 14px; color: var(--muted); }
+  .flow { text-align: center; font-size: 30px; color: var(--muted); margin: 10px 0 6px; letter-spacing: 2px; font-size: 20px; }
+  .core { padding: 20px 26px; display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr; gap: 18px; border: 2px solid var(--brand); }
+  .core h3 { font-size: 20px; color: var(--brand); margin-bottom: 6px; }
+  .core p { font-size: 16px; line-height: 1.5; color: var(--ink); }
+  .core .title { grid-column: 1 / -1; font-size: 22px; font-weight: 700; display: flex; align-items: center; gap: 12px; }
+</style></head>
+<body>
+<header><h1><span>永發便當</span>團膳管理系統　角色功能一覽</h1><p>四種角色，共用同一套訂單服務與截止規則</p></header>
+
+<div class="roles">
+  <section class="card role" style="--c: var(--line-green)">
+    <div class="head"><h2>客戶（廠區聯絡人）</h2><p>用 LINE 官方帳號訂餐</p></div>
+    <div class="where">介面：LINE 聊天＋圖文選單</div>
+    <ul>
+      <li>輸入 6 位數綁定碼<small>綁定到自己的廠區，錯 5 次暫停 15 分鐘</small></li>
+      <li>傳訊息訂餐、改單、取消<small>AI 解析 → 確認卡 →〔確認〕才寫入</small></li>
+      <li>查詢訂單<small>下一個還沒截止的餐次</small></li>
+      <li>本週菜色<small>配菜道數依廠區價位</small></li>
+      <li>上月／本月帳單<small>彙總＋每日明細表格</small></li>
+      <li>截止時間說明</li>
+      <li>收到截止後改單通知<small>員工代改後自動推播</small></li>
+    </ul>
+  </section>
+
+  <section class="card role" style="--c: var(--staff)">
+    <div class="head"><h2>員工／司機</h2><p>登入後台（手機優先）</p></div>
+    <div class="where">介面：<code>/admin/my-route</code>　<code>/admin/orders</code></div>
+    <ul>
+      <li>我的路線<small>當天午晚餐路線、代班標示、依價位裝車總數</small></li>
+      <li>配送清單<small>地址開地圖、電話直撥、截止後異動藍框</small></li>
+      <li>電話改單<small>不受截止限制，記錄原因與變更歷程</small></li>
+      <li>截止後改單推播<small>自動通知該廠區 LINE 聯絡人</small></li>
+      <li>每日出餐單 Excel<small>出餐單＋備料總計</small></li>
+      <li>模擬客戶下單 <code style="font-size:14px">/order</code></li>
+    </ul>
+  </section>
+
+  <section class="card role" style="--c: var(--admin)">
+    <div class="head"><h2>管理者</h2><p>員工的所有功能，再加上基本資料</p></div>
+    <div class="where">介面：後台側邊選單</div>
+    <ul>
+      <li>客戶 → 公司 → 廠區設定<small>餐次、路線、固定單價、預設份數、訂餐星期</small></li>
+      <li>LINE 聯絡人<small>產生綁定碼、解除綁定、封鎖狀態</small></li>
+      <li>路線<small>配送順序、預設司機、代班司機</small></li>
+      <li>菜單（每週）、休假日、價位等級</li>
+      <li>帳號<small>員工、角色、重設密碼</small></li>
+      <li>月結對帳表<small>公司／廠區彙總與逐日明細，依單價快照</small></li>
+      <li>查看任一司機的路線</li>
+    </ul>
+  </section>
+
+  <section class="card role" style="--c: var(--kitchen)">
+    <div class="head"><h2>廚房</h2><p>電視看板，只看不改</p></div>
+    <div class="where">介面：<code>/board</code>（不需登入）</div>
+    <ul>
+      <li>午餐／晚餐分頁、可切換日期</li>
+      <li>每條路線一欄<small>司機與電話、依配送順序列出廠區份數</small></li>
+      <li>圖示＝餐別、顏色＝價位</li>
+      <li>異動即時高亮<small>新增綠、修改橘、刪除紅、截止後改單藍</small></li>
+      <li>全廠合計表<small>各價位 × 餐別份數，供備料</small></li>
+      <li>近期異動 30 筆</li>
+    </ul>
+  </section>
+</div>
+
+<div class="flow">▼　下單、改單、查詢都經過核心服務　▼</div>
+
+<section class="card core">
+  <div class="title"><span class="tag" style="background:var(--brand)">系統核心</span>所有訂單都經過同一支訂單服務（<code style="font-size:18px">src/lib/orders.ts</code>）</div>
+  <div><h3>訂單服務</h3><p>單位：廠區 × 日期 × 餐次。客戶受截止時間限制（午 11:00、晚 16:00、B 餐前一天 16:00）；員工不受限但截止後會標記。每行存單價快照，每次異動都記錄。</p></div>
+  <div><h3>每日自動產生</h3><p>每 5 分鐘檢查，依各廠區預設份數產生當天午、晚餐訂單；週日與休假日不產生。</p></div>
+  <div><h3>AI 解析（LINE）</h3><p>Claude Haiku 只負責把訊息讀成結構化內容；日期、價位、截止都由程式判斷。</p></div>
+  <div><h3>即時更新</h3><p>訂單寫入後立即通知（Server-Sent Events），看板與異動紀錄同步刷新。</p></div>
+</section>
+
+<footer>永發便當團膳管理系統 · 2026-11 · 依 docs/spec.md 與現行程式整理</footer>
+</body></html>

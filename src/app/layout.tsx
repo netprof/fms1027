@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: { default: "團膳管理系統", template: "%s｜團膳管理系統" },
+  title: { default: "永發便當團膳管理系統", template: "永發便當%s" },
   description: "團膳訂單、配送路線與即時儀表板",
 };
 

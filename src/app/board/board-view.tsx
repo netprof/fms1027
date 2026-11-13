@@ -397,7 +397,7 @@ export function BoardView() {
   return (
     <div className="flex min-h-screen flex-col bg-zinc-100 text-zinc-900">
       <header className="flex flex-wrap items-center gap-3 bg-zinc-900 px-4 py-2 text-white">
-        <h1 className="text-xl font-semibold">訂餐儀表板</h1>
+        <h1 className="text-xl font-semibold">永發便當訂餐儀表板</h1>
         <input
           type="date"
           aria-label="日期"

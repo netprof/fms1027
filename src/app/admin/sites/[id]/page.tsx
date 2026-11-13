@@ -69,6 +69,7 @@ async function Content({ params }: { params: Promise<{ id: string }> }) {
         bound: sql<boolean>`${lineContacts.lineUserId} is not null`,
         displayName: lineContacts.displayName,
         boundAt: lineContacts.boundAt,
+        unfollowedAt: lineContacts.unfollowedAt,
         bindCode: lineContacts.bindCode,
         expiresAt: lineContacts.bindCodeExpiresAt,
         // Compared in SQL: no JS clock in a prerendered component.
@@ -216,7 +217,12 @@ async function Content({ params }: { params: Promise<{ id: string }> }) {
                 <tr key={c.id}>
                   <td>{c.name}</td>
                   <td>
-                    {c.bound ? (
+                    {c.bound && c.unfollowedAt ? (
+                      <span className="text-[#d97706]">
+                        已封鎖官方帳號{c.displayName ? `（LINE：${c.displayName}）` : ""}
+                        <span className="ml-1 text-xs text-ink-muted">{formatTime(c.unfollowedAt)}，不會收到推播</span>
+                      </span>
+                    ) : c.bound ? (
                       <span className="text-[#0ca30c]">
                         已綁定{c.displayName ? `（LINE：${c.displayName}）` : ""}
                         {c.boundAt && <span className="ml-1 text-xs text-ink-muted">{formatTime(c.boundAt)}</span>}

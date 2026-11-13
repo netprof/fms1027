@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><link rel="stylesheet" href="common.css">
+<style>
+  body { width: 1800px; height: 1060px; position: relative; --c: var(--staff); }
+  .timeline { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 0; margin-bottom: 26px; }
+  .t { position: relative; padding: 14px 18px 0; border-top: 6px solid var(--line); }
+  .t::before { content: ""; position: absolute; top: -14px; left: 14px; width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 5px solid var(--tc, var(--staff)); }
+  .t b { font-size: 24px; color: var(--tc, var(--staff)); display: block; padding-left: 26px; margin-top: -6px; }
+  .t p { font-size: 16px; color: var(--ink); line-height: 1.5; margin-top: 6px; }
+  .lanes { display: grid; grid-template-columns: 1fr 1fr; gap: 36px; }
+  .lane { padding: 20px 24px; }
+  .lane h2 { font-size: 24px; margin-bottom: 4px; color: var(--c); }
+  .lane .sub { font-size: 15px; color: var(--muted); margin-bottom: 14px; }
+  .lane .sub code { font-family: Consolas, monospace; background: #f1f5f9; padding: 1px 6px; border-radius: 4px; color: var(--ink); }
+  .branch { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+  .blue { --c: #2a78d6; }
+  .gray { --c: var(--sys); }
+  .k { --c: var(--kitchen); }
+</style></head>
+<body>
+<header><h1><span>永發便當</span>員工／司機每日作業流程</h1><p>角色：員工（多數兼司機）　介面：後台網頁，手機優先</p></header>
+
+<div class="timeline">
+  <div class="t" style="--tc: var(--sys)"><b>00:00 起</b><p>系統每 5 分鐘檢查，依各廠區預設份數自動產生當天午、晚餐訂單（週日、休假日不產生）。</p></div>
+  <div class="t" style="--tc: var(--line-green)"><b>上午</b><p>客戶用 LINE 改單，看板即時更新。員工接到電話也可在後台改單。</p></div>
+  <div class="t" style="--tc: var(--kitchen)"><b>11:00 午餐截止</b><p>客戶不能再改。之後的變動只能來電，由員工代改並自動通知客戶。B 餐在前一天 16:00 截止。</p></div>
+  <div class="t" style="--tc: var(--admin)"><b>16:00 晚餐截止</b><p>晚餐同樣流程：截止 → 出餐單 → 出車配送。</p></div>
+</div>
+
+<div class="lanes">
+  <section class="card lane">
+    <h2>內勤：電話改單與出餐</h2>
+    <div class="sub">介面：<code>/admin/orders</code>　<code>/admin/reports</code>　<code>/board</code></div>
+    <div class="step">客戶來電要改單<small>選廠區、日期、餐次，調整各餐別份數，填寫原因（預設「客戶來電」）後儲存；不受截止時間限制</small></div>
+    <div class="down">▼</div>
+    <div class="decision">儲存時已過截止時間？</div>
+    <div class="down">▼</div>
+    <div class="branch">
+      <div class="step"><b>未截止</b>　一般異動<small>看板以綠／橘／紅標示 10 分鐘</small></div>
+      <div class="step blue"><b>已截止</b>　截止後異動<small>看板與司機頁持續標藍，並 LINE 推播給該廠區聯絡人</small></div>
+    </div>
+    <div class="down">▼ 每次異動都記錄誰、何時、改了什麼、原因</div>
+    <div class="step k"><b>下載每日出餐單 Excel</b><small>「出餐單」依路線與配送順序列出每個廠區；「備料總計」是各價位 × 餐別總份數</small></div>
+    <div class="down">▼</div>
+    <div class="step k"><b>廚房看 /board 備料與出餐</b><small>全廠合計表、各路線小計；截止後的藍色異動持續保留</small></div>
+  </section>
+
+  <section class="card lane">
+    <h2>司機：我的路線</h2>
+    <div class="sub">介面：<code>/admin/my-route</code>（只能看、不能改）</div>
+    <div class="step">登入後看到自己當天的午、晚餐路線<small>有代班時路線出現在代班司機頁面並標示「代班」，原司機頁面不顯示</small></div>
+    <div class="down">▼</div>
+    <div class="step">依路線上方的「各價位總份數」裝車<small>同時兼作價位顏色說明</small></div>
+    <div class="down">▼</div>
+    <div class="step">依配送順序逐站送餐<small>每站顯示各餐別份數；點地址開 Google 地圖，點電話直接撥號</small></div>
+    <div class="down">▼</div>
+    <div class="step blue"><b>注意截止後的異動</b><small>藍框並附變動量，例如「葷 11 (+3)」；被刪除的項目以刪除線保留，避免照舊送錯</small></div>
+    <div class="down">▼</div>
+    <div class="step gray">可切換日期查看明天的路線<small>管理者可選擇任一位司機</small></div>
+  </section>
+</div>
+
+<footer>永發便當團膳管理系統 · 2026-11 · 依 docs/spec.md 第一期整理</footer>
+</body></html>
